@@ -56,7 +56,7 @@ public final class Cuffs {
     }
 
     public static boolean compliant(LivingEntity e) {
-        return !(e instanceof Monster) || e.getHealth() <= e.getMaxHealth() * 0.5f;
+        return !(e instanceof Monster) || e.getHealth() <= e.getMaxHealth() * 0.5f || Stun.stunned(e);
     }
 
     static void init() {
@@ -65,6 +65,7 @@ public final class Cuffs {
         ServerPlayNetworking.registerGlobalReceiver(CuffPayload.ID, (payload, ctx) -> handle(ctx.player(), payload));
         ServerTickEvents.END_SERVER_TICK.register(Cuffs::tick);
         EntityTrackingEvents.START_TRACKING.register((entity, player) -> {
+            if (!cuffed(entity) && Stun.stunned(entity)) ServerPlayNetworking.send(player, new CuffStatePayload(entity.getId(), CuffStatePayload.STUNNED, -1));
             if (cuffed(entity)) ServerPlayNetworking.send(player, new CuffStatePayload(entity.getId(), CuffStatePayload.CUFFED, -1));
         });
     }

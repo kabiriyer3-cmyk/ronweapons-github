@@ -25,7 +25,6 @@ import ronweapons.WeaponDef;
 public final class FirstPersonRenderer {
     /** psk -> Minecraft camera axes: x = -x, y = z, z = y (column-major constructor). */
     private static final Matrix4f C = new Matrix4f(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1);
-    private static final float ADS_TIME = 0.18f;
 
     private static GunRig rigCache;
     private static float[] alp, alr, wlp, wlr, tap, tar, twp, twr;
@@ -79,8 +78,9 @@ public final class FirstPersonRenderer {
         Vector3f adsT = adsD.t();
         Quaternionf adsQ = adsD.q();
 
-        boolean wantAds = def != null && RonWeaponsClient.aiming() && !anim.reloading();
-        ads += (wantAds ? 1 : -1) * dt / ADS_TIME;
+        boolean wantAds = def != null && RonWeaponsClient.aiming() && !anim.reloading() && !anim.affected()
+                && (rig.adsFrom.equals("idle") || anim.raisedPose());
+        ads += (wantAds ? 1 : -1) * dt / rig.adsTime;
         ads = Math.max(0, Math.min(1, ads));
         if (ads > 0) {
             float e = ads * ads * (3 - 2 * ads);
@@ -113,11 +113,24 @@ public final class FirstPersonRenderer {
                 rig.fx == null || rig.fx.ejectBone() < 0 ? null : new Matrix4f(attach).mul(gunG[rig.fx.ejectBone()]),
                 rig.fx == null || rig.fx.magSocket() < 0 ? null : new Matrix4f(attach).mul(gunG[0])
                         .mul(new Matrix4f(rig.gun.bindGlobal[0]).invert()).mul(rig.gun.bindGlobal[rig.fx.magSocket()]));
+        if (rig.light != null) {
+            Matrix4f sock = new Matrix4f(attach).mul(gunG[rig.light.socket()]);
+            float[] l = rig.light.lens();
+            Vector3f lens = sock.transformPosition(new Vector3f(l[0], l[1], l[2]));
+            Vector3f dir = new Matrix4f(attach).mul(gunG[0]).transformDirection(new Vector3f(0, -1, 0)).normalize();
+            GearClient.fpLight(lens, dir);
+        }
+        boolean gunHidden = rig.hideAfter.containsKey(anim.current()) && anim.time() >= rig.hideAfter.get(anim.current());
         for (int b = 0; b < armsG.length; b++) armsSkin[b].set(view).mul(armsG[b]).mul(rig.arms.invBind[b]);
         for (int b = 0; b < gunG.length; b++) gunSkin[b].set(attach).mul(gunG[b]).mul(rig.gun.invBind[b]);
         MatrixStack.Entry entry = matrices.peek();
         rig.arms.skin(armsSkin);
         rig.arms.emit(entry, consumers, light);
+        if (rig.armsAttachment != null) {
+            rig.armsAttachment.mesh().skinRigid(new Matrix4f(view).mul(armsG[rig.armsAttachment.bone()]));
+            rig.armsAttachment.mesh().emit(entry, consumers, light);
+        }
+        if (gunHidden) return true;
         rig.gun.skin(gunSkin);
         rig.gun.emit(entry, consumers, light, optic == null ? null : optic.hideGun());
         renderAttachments(rig, attach, entry, consumers, light);
@@ -125,6 +138,7 @@ public final class FirstPersonRenderer {
         if (rig.suppressor != null && RonWeapons.suppressed(stack)) {
             renderOnSocket(rig.suppressor.mesh(), rig.suppressor.socket(), attach, entry, consumers, light);
         }
+        if (rig.light != null) renderOnSocket(rig.light.mesh(), rig.light.socket(), attach, entry, consumers, light);
         return true;
     }
 
@@ -173,7 +187,7 @@ public final class FirstPersonRenderer {
 
         // ADS corrections from the idle pose at t = 0: iron sights + every optic of this rig
         resetToBind(rig);
-        GunAnimator.sample(rig, "idle", 0f, true, false, alp, alr, wlp, wlr);
+        GunAnimator.sample(rig, rig.actions.containsKey(rig.adsFrom) ? rig.adsFrom : "idle", 0f, true, false, alp, alr, wlp, wlr);
         rig.arms.globals(alp, alr, armsG);
         rig.gun.globals(wlp, wlr, gunG);
         Matrix4f hip = viewOf(rig).mul(armsG[rig.attachBone]).mul(gunG[0]);

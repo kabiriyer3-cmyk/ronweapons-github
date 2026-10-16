@@ -31,7 +31,7 @@ import ronweapons.net.FxPayload;
 public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
 
-    private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey;
+    private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey, lightKey;
     private static boolean autoMode = true, wasAttack, wasHolding;
     private static String heldId;
     private static int heldSlot = -1, localAmmo = -1;
@@ -52,9 +52,23 @@ public final class RonWeaponsClient implements ClientModInitializer {
 
     /** folder of the rig in the private pack for what is in the main hand: a gun id, "zipcuffs", or null */
     public static String heldRigId() {
+        MinecraftClient mc = MinecraftClient.getInstance();
         WeaponDef d = heldDef();
-        if (d != null) return d.id();
+        if (d != null) {
+            // pistol + ballistic shield in the other hand: RoN's shield rig of that pistol (if the pack has it)
+            if (d.shieldable() && ronweapons.Gear.hasShield(mc.player) && GunRig.get(mc.getResourceManager(), d.id() + "_shield") != null) {
+                return d.id() + "_shield";
+            }
+            return d.id();
+        }
+        String g = GrenadeClient.heldKind();
+        if (g != null) return g;
         return CuffClient.holdingCuffs() ? "zipcuffs" : null;
+    }
+
+    public static boolean shieldRig() {
+        String r = heldRigId();
+        return r != null && r.endsWith("_shield");
     }
 
     /** a gun or the zipcuffs: RoN arms are drawn instead of the vanilla hand */
@@ -77,6 +91,9 @@ public final class RonWeaponsClient implements ClientModInitializer {
         magKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.magcheck", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, "category.ronweapons"));
         suppKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.suppressor", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_N, "category.ronweapons"));
         opticKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.optic", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_M, "category.ronweapons"));
+        lightKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.light", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, "category.ronweapons"));
+        GearClient.init();
+        net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(RonWeapons.GRENADE_ENTITY, GrenadeEntityRenderer::new);
         ANIM.onShellInserted(() -> {
             WeaponDef d = heldDef();
             if (d != null) localAmmo = Math.min(d.magSize(), localAmmo + 1);
@@ -113,7 +130,10 @@ public final class RonWeaponsClient implements ClientModInitializer {
         }
         wasHolding = rigId != null;
         heldSlot = slot;
+        ANIM.setRaised(aiming() && rigId != null && rigId.endsWith("_shield"));
         CuffClient.tick(mc);
+        GrenadeClient.tick(mc);
+        GearClient.tick(mc);
         if (!holding) {
             if (rigId != null && GunRig.get(mc.getResourceManager(), rigId) == null) ANIM.update(0.05f);
             while (reloadKey.wasPressed()) { }
@@ -121,11 +141,12 @@ public final class RonWeaponsClient implements ClientModInitializer {
             while (magKey.wasPressed()) { }
             while (suppKey.wasPressed()) { }
             while (opticKey.wasPressed()) { }
+            while (lightKey.wasPressed()) { }
             wasAttack = false;
             return;
         }
 
-        if (GunRig.get(mc.getResourceManager(), def.id()) == null) ANIM.update(0.05f); // no private pack: keep logic timing alive
+        if (GunRig.get(mc.getResourceManager(), rigId) == null) ANIM.update(0.05f); // no private pack: keep logic timing alive
         RonWeapons.Sounds snd = RonWeapons.SOUNDS.get(def.id());
         boolean auto = def.auto() && autoMode;
         long now = System.nanoTime();
@@ -180,6 +201,16 @@ public final class RonWeaponsClient implements ClientModInitializer {
             }
         }
 
+        while (lightKey.wasPressed()) {
+            if (def.hasLight()) {
+                boolean on = !ronweapons.Gear.lightOn(stack);
+                ClientPlayNetworking.send(new ActionPayload(ActionPayload.TOGGLE_LIGHT));
+                player.sendMessage(Text.translatable(on ? "ronweapons.light.on" : "ronweapons.light.off", def.name()), true);
+            } else {
+                player.sendMessage(Text.translatable("ronweapons.light.none", def.name()), true);
+            }
+        }
+
         boolean attack = mc.currentScreen == null && mc.options.attackKey.isPressed();
         // shotguns: the trigger stops a shell reload after the shell in hand
         if (attack && !wasAttack && def.shellReload() && ANIM.shellReloading()) {
@@ -195,7 +226,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     lastShotNs = now;
                     nextShotNs = now + def.clientIntervalNs();
                     ANIM.fire(localAmmo == 0, aiming());
-                    Fx.localFire(GunRig.get(mc.getResourceManager(), def.id()));
+                    Fx.localFire(GunRig.get(mc.getResourceManager(), rigId));
                     FirstPersonRenderer.kick(def.viewKick());
                     boolean supp = RonWeapons.suppressed(stack);
                     playLocal(RonWeapons.id(def.id() + (supp ? ".fire_1p_supp" : ".fire_1p")), supp ? 0.8f : 1.0f,

@@ -13,7 +13,10 @@ public final class GunAnimator {
     private String cur = "draw", prev = null;
     private float curT, prevT, fade, fadeDur = 0f;
     private boolean curLoop, prevLoop, curEmpty, prevEmpty;
-    private boolean empty, moving, sprinting;
+    private boolean empty, moving, sprinting, raised;
+    /** RoN game-feel reaction in progress ("flash", "gas", "sting") and seconds left of it */
+    private String affect;
+    private float affectLeft;
     private GunRig rig;
     private int cueIdx;
     /** shell-by-shell reload (shotguns): shells still to insert, stop after the shell in hand, callback per inserted shell */
@@ -27,7 +30,35 @@ public final class GunAnimator {
     public void setEmpty(boolean empty) { this.empty = empty; }
     public void setLocomotion(boolean moving, boolean sprinting) { this.moving = moving; this.sprinting = sprinting; }
 
-    private static boolean locomotion(String a) { return a.equals("idle") || a.equals("walk") || a.equals("run"); }
+    /** shield rigs: right click raises the shield (idle_up / walk_up locomotion, raise / lower transitions) */
+    public void setRaised(boolean raised) { this.raised = raised; }
+
+    private static boolean locomotion(String a) {
+        return a.equals("idle") || a.equals("walk") || a.equals("run") || a.equals("idle_up") || a.equals("walk_up");
+    }
+
+    private static boolean upPose(String a) { return a.equals("idle_up") || a.equals("walk_up") || a.equals("raise"); }
+
+    /** grenades: the pin-pull clips stay on their last frame until the throw */
+    private static boolean holdsAtEnd(String a) { return a.equals("throw_start") || a.equals("throw_under_start"); }
+
+    public float time() { return curT; }
+
+    /** the raised-shield pose is fully up (ADS allowed) */
+    public boolean raisedPose() { return upPose(cur) && !cur.equals("raise") || (cur.startsWith("fire") && raised); }
+
+    /** RoN reaction clips while flashed / gassed / stung (rigs without them just keep going) */
+    public void affect(String kind, float seconds) {
+        if (rig == null || !rig.actions.containsKey("aff_" + kind + "_loop")) return;
+        boolean already = affect != null && affect.equals(kind) && cur.startsWith("aff_" + kind);
+        affect = kind;
+        affectLeft = Math.max(affectLeft, seconds);
+        if (!already && !reloading()) {
+            play(has("aff_" + kind + "_start") ? "aff_" + kind + "_start" : "aff_" + kind + "_loop", !has("aff_" + kind + "_start"), 0.12f);
+        }
+    }
+
+    public boolean affected() { return cur.startsWith("aff_"); }
 
     private float duration(String a) {
         if (rig == null) return a.startsWith("reload") ? 2.5f : 0.3f;
@@ -102,19 +133,24 @@ public final class GunAnimator {
         shellsLeft--;
         if (onShell != null) onShell.run();
     }
-    public void reload(boolean emptyMag) { play(emptyMag && has("reload_empty") ? "reload_empty" : "reload_tac", false, 0.15f); }
+    public void reload(boolean emptyMag) {
+        String a = emptyMag && has("reload_empty") ? "reload_empty" : "reload_tac";
+        if (raised && has(a + "_up")) a = a + "_up";
+        play(a, false, 0.15f);
+    }
     public void action(String a) { play(a, false, 0.15f); }
 
     public boolean reloading() { return cur.startsWith("reload"); }
 
+    /** raise / lower count as "free" for firing (the shield moves, the pistol is out) */
     public boolean canFire() {
-        if (procDraw > PROC_DRAW * 0.3f) return false;
-        if (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire")) return true;
+        if (procDraw > PROC_DRAW * 0.3f || affected()) return false;
+        if (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire") || cur.equals("raise") || cur.equals("lower")) return true;
         return cur.equals("draw") && curT > duration("draw") * 0.75f;
     }
 
-    public boolean canReload() { return procDraw <= PROC_DRAW * 0.3f && (locomotion(cur) || cur.startsWith("fire") || cur.equals("magcheck") || cur.equals("dryfire")); }
-    public boolean canAct() { return procDraw <= PROC_DRAW * 0.3f && (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire")); }
+    public boolean canReload() { return procDraw <= PROC_DRAW * 0.3f && !affected() && (locomotion(cur) || cur.startsWith("fire") || cur.equals("magcheck") || cur.equals("dryfire")); }
+    public boolean canAct() { return procDraw <= PROC_DRAW * 0.3f && !affected() && (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire")); }
 
     public void update(float dt) {
         curT += dt;
@@ -122,10 +158,28 @@ public final class GunAnimator {
         procDraw = Math.max(0f, procDraw - dt);
         fade += dt;
         fireCues();
-        String loco = sprinting && has("run") ? "run" : (moving && has("walk") ? "walk" : "idle");
+        boolean up = raised && has("idle_up");
+        String loco = sprinting && has("run") ? "run"
+                : up ? (moving && has("walk_up") ? "walk_up" : "idle_up")
+                : (moving && has("walk") ? "walk" : "idle");
+        if (affect != null) {
+            affectLeft -= dt;
+            String a = "aff_" + affect;
+            if (cur.equals(a + "_start") && curT >= duration(cur)) play(a + "_loop", true, 0.1f);
+            else if (cur.equals(a + "_loop") && affectLeft <= 0) {
+                if (has(a + "_end")) play(a + "_end", false, 0.1f);
+                else { play(loco, true, 0.3f); affect = null; }
+            } else if (cur.equals(a + "_end") && curT >= duration(cur)) { play(loco, true, 0.25f); affect = null; }
+            else if (!cur.startsWith("aff_") && affectLeft <= 0) affect = null;
+            else if (!cur.startsWith("aff_") && locomotion(cur)) play(has(a + "_loop") ? a + "_loop" : loco, true, 0.12f);
+            if (cur.startsWith("aff_")) return;
+        }
         if (locomotion(cur)) {
-            if (!cur.equals(loco)) play(loco, true, 0.3f);
-        } else if (curT >= duration(cur)) {
+            boolean wasUp = upPose(cur), wantUp = upPose(loco);
+            if (wantUp && !wasUp && has("raise") && !cur.equals("run")) play("raise", false, 0.1f);
+            else if (!wantUp && wasUp && has("lower")) play("lower", false, 0.1f);
+            else if (!cur.equals(loco)) play(loco, true, 0.3f);
+        } else if (curT >= duration(cur) && !holdsAtEnd(cur)) {
             if (shellReloading()) {
                 // same decisions as the server (RonWeapons.stepShells)
                 if (!cur.equals("reload_start")) inserted();
@@ -134,7 +188,8 @@ public final class GunAnimator {
                 else play("reload_loop", false, 0.04f);
             } else {
                 if (cur.equals("reload_end")) inserted();
-                play(loco, true, cur.startsWith("fire") ? 0.25f : FADE_DEFAULT);
+                // raise / lower blend straight into the matching pose
+                play(loco, true, cur.startsWith("fire") ? 0.25f : cur.equals("raise") || cur.equals("lower") ? 0.08f : FADE_DEFAULT);
             }
         }
         // the weapon idle pose depends on the bolt state, follow it while idling

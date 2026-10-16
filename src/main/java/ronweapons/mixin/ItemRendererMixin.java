@@ -10,7 +10,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import ronweapons.GunItem;
 import ronweapons.client.ItemModelRenderer;
 
 /** Every item render path (GUI, item frames, dropped items) ends here, before the model's display transform. */
@@ -20,7 +19,7 @@ public abstract class ItemRendererMixin {
             at = @At("HEAD"), cancellable = true)
     private void ronweapons$model3d(ItemStack stack, ModelTransformationMode mode, boolean leftHanded, MatrixStack matrices,
                                     VertexConsumerProvider consumers, int light, int overlay, BakedModel model, CallbackInfo ci) {
-        if (stack.isEmpty() || !(stack.getItem() instanceof GunItem)) return;
+        if (stack.isEmpty() || !ItemModelRenderer.handles(stack)) return;
         if (ItemModelRenderer.render(stack, mode, leftHanded, matrices, consumers, light, overlay)) ci.cancel();
     }
 }

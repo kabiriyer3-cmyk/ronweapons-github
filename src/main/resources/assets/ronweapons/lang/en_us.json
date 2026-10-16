@@ -38,5 +38,22 @@
   "ronweapons.cuffs.not_compliant": "Not compliant: wear the target down first (50% health or less)",
   "ronweapons.cuffs.done": "Restrained: %s",
   "ronweapons.cuffs.released": "Released: %s",
-  "ronweapons.cuffs.already": "Already restrained (sneak + right click to cut free)"
+  "ronweapons.cuffs.already": "Already restrained (sneak + right click to cut free)",
+  "item.ronweapons.flashbang": "Flashbang",
+  "item.ronweapons.stinger": "Stinger Grenade",
+  "item.ronweapons.csgas": "CS Gas Grenade",
+  "item.ronweapons.ballistic_shield": "Ballistic Shield",
+  "item.ronweapons.nvg": "Night Vision Goggles",
+  "entity.ronweapons.grenade": "Grenade",
+  "subtitles.ronweapons.flashbang": "Flashbang detonates",
+  "subtitles.ronweapons.stinger": "Stinger detonates",
+  "subtitles.ronweapons.csgas": "CS gas pops",
+  "subtitles.ronweapons.shield.hit": "Round hits the shield",
+  "key.ronweapons.light": "Weapon light",
+  "key.ronweapons.nvg": "Night vision on/off",
+  "key.ronweapons.bash": "Shield bash",
+  "ronweapons.light.on": "%s: light ON",
+  "ronweapons.light.off": "%s: light OFF",
+  "ronweapons.light.none": "%s has no light mount",
+  "ronweapons.nvg.none": "Put the night vision goggles on your head first"
 }

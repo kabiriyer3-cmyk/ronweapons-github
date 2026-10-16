@@ -104,6 +104,68 @@ class Pack:
             self.event(f"{wid}.{ev}", files)
 
 
+def tinnitus(seconds=5.0):
+    """our own ringing-ears tone (RoN does it with FMOD DSP): two close high sines, quick swell, slow fade"""
+    t = np.arange(int(seconds * SR)) / SR
+    env = np.minimum(1, t / 0.08) * np.exp(-t / 1.8)
+    a = (np.sin(2 * np.pi * 3720 * t) * 0.6 + np.sin(2 * np.pi * 3790 * t + 1.0) * 0.4) * env * 0.35
+    return np.stack([a, a * 0.97], axis=1).astype(np.float32)
+
+
+def motion(rel, bone, thr=1.5):
+    """(first time the bone leaves its start pose, first time after that it reaches its final pose) in seconds"""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from actorx import read_psa
+    path = os.path.join(PRIV, "export", *rel.split("/")) + ".psa"
+    if not os.path.exists(path):
+        return None
+    a = read_psa(path)
+    j = [n.lower() for n in a.bones].index(bone.lower())
+    pos = a.pos[:, j]
+    d0 = np.linalg.norm(pos - pos[0], axis=1)
+    dl = np.linalg.norm(pos - pos[-1], axis=1)
+    out = np.nonzero(d0 > thr)[0]
+    if not len(out):
+        return None
+    k0 = out[0]
+    back = np.nonzero(dl[k0:] < thr)[0]
+    k1 = k0 + back[0] if len(back) else a.frames - 1
+    return k0 / a.fps, k1 / a.fps
+
+
+def shield_reloads(base_id):
+    """reload cues for the shield rigs, from the RoN shield reload weapon clips (mag / speedloader motion)"""
+    R = "ReadyOrNot/Content/ReadyOrNot/Animations/FP/Shield"
+    out = {}
+    if base_id == "g19":
+        for act, clip in (("reload_tac", "low"), ("reload_empty", "empty_low"), ("reload_tac_up", "up"), ("reload_empty_up", "empty_UP")):
+            m = motion(f"{R}/G19/ron_g19/fp_g19_add_shield_reload_{clip}_weapon", "tag_mag_01")
+            if not m:
+                continue
+            t_out, t_in = m
+            c = [[0.0, "g19.cloth_start"], [round(t_out, 2), "g19.magout"]]
+            if "empty" in act:
+                c.append([round(t_out + 0.3, 2), "g19.mag_drop", 0.5])
+                c.append([round(t_in + 0.45, 2), "g19.slide_release"])
+            else:
+                c.append([round(t_in + 0.4, 2), "g19.mag_stow"])
+            c.append([round(t_in, 2), "g19.magin"])
+            out[act] = sorted(c)
+            print(f"  shield {act}: mag out {t_out:.2f} in {t_in:.2f}")
+    else:
+        for act, clip in (("reload_tac", "low"), ("reload_empty", "low"), ("reload_tac_up", "up"), ("reload_empty_up", "up")):
+            m = motion(f"{R}/Python/ron_python/fp_python_add_shield_reload_{clip}_weapon", "tag_bullets_root")
+            if not m:
+                continue
+            t0, t_in = m
+            out[act] = sorted([[0.0, "python.reload_start"], [round(max(0.2, t0 - 0.9), 2), "python.cyl_out"],
+                               [round(max(0.4, t0 - 0.4), 2), "python.eject"], [round(t_in, 2), "python.insert"],
+                               [round(t_in + 0.8, 2), "python.cyl_in"]])
+            print(f"  shield {act}: loader moves {t0:.2f} seated {t_in:.2f}")
+    return out
+
+
 def main():
     if os.path.exists(OUT):
         shutil.rmtree(OUT)
@@ -224,6 +286,57 @@ def main():
             "subtitles.ronweapons.zipcuffs.cut", attenuation=12)
     # fp_zipcuffs_add_restrain_downed (1.33 s): hands on the wrists, the right hand pulls the tie at ~0.7 s
     cues["zipcuffs"] = {"draw": [[0.0, "zipcuffs.draw", 0.6]], "restrain": [[0.0, "zipcuffs.grab", 0.8], [0.27, "zipcuffs.cuff"]]}
+
+    # ---------------- v7: grenades (weapons / Interactions / SWAT banks)
+    p.foley("grenade", {
+        "pouch": [(f"char_reload_pouch_grenades_0{i}", 0, "SWAT") for i in range(1, 9)],
+    })
+    p.foley("flashbang", {"pin": [f"weap_grenade_ring_0{i}" for i in range(1, 5)]})
+    p.foley("stinger", {"pin": [f"weap_stinger_pin_0{i}" for i in range(1, 4)] + ["Stinger_PinPull"]})
+    p.foley("csgas", {"pin": ["CS_PinPull"]})
+    # 3P world sounds (mono, positional): detonations carry far (the server plays them at volume 5-6 = 80-96 blocks)
+    p.event("flashbang.bang", [p.write("flashbang", f"bang_{i}", mix((load(f"weap_flashbang_out_0{i}"), 1.0, 0),
+                                                                   (load(f"weap_flashbang_debris_0{(i - 1) % 3 + 1}", 0, "Interactions"), 0.5, 0.03)), mono=True)
+                                for i in range(1, 7)], "subtitles.ronweapons.flashbang")
+    p.event("stinger.bang", [p.write("stinger", f"bang_{i}", mix((load(f"weap_stinger_out_0{i}"), 1.0, 0),
+                                                                 (load("weap_grenade_fx_stinger_v2_01"), 0.6, 0.02)), mono=True)
+                              for i in range(1, 5)], "subtitles.ronweapons.stinger")
+    p.event("csgas.pop", [p.write("csgas", f"pop_{i}", mix((load(f"weap_grenade_csgas_expl_0{i}", 0, "Interactions"), 1.0, 0),
+                                                           (load(f"weap_grenade_csgas_click_0{i}", 0, "Interactions"), 0.7, 0)), mono=True)
+                           for i in range(1, 4)], "subtitles.ronweapons.csgas")
+    p.event("csgas.hiss", [p.write("csgas", f"hiss_{i}", load(f"weap_grenade_csgas_gas_0{i}", 0, "Interactions"), mono=True) for i in range(1, 4)])
+    p.event("grenade.bounce", [p.write("grenade", f"bounce_{n}", load(k), mono=True) for n, k in enumerate(
+        [f"weap_grenade_bnce_thud_hi_0{i}" for i in range(1, 7)] + [f"weap_grenade_bnce_hi_short_0{i}" for i in range(1, 6)])])
+    p.event("stinger.bounce", [p.write("stinger", f"bounce_{i}", load(f"weap_stinger_bnce_hard_0{i}"), mono=True) for i in range(1, 9)])
+    p.event("csgas.bounce", [p.write("csgas", f"bounce_{i}", load(f"impact_can_bounce_0{i}", 0, "Interactions"), mono=True) for i in range(1, 6)])
+    p.event("grenade.throw", [p.write("grenade", "throw", load("Stinger_Throw"), mono=True)])
+    p.event("grenade.lever", [p.write("grenade", f"lever_{i}", load(f"weap_grenade_lever_0{i}"), mono=True) for i in range(1, 5)])
+    pin = {"flashbang": "flashbang.pin", "stinger": "stinger.pin", "csgas": "csgas.pin"}
+    for gid, ev in pin.items():
+        # the pin leaves the grenade 0.52 s into every RoN pin-pull clip (tag_pin motion, diag_v7c.py)
+        cues[gid] = {"draw": [[0.0, "grenade.pouch", 0.7]], "throw_start": [[0.50, ev]], "throw_under_start": [[0.50, ev]]}
+
+    # ---------------- ballistic shield
+    p.foley("shield", {
+        "draw": [("tools_shield_pickup_01", 0, "SWAT"), ("tools_shield_pickup_02", 0, "SWAT")],
+        "up": [("shield_up_01", 0, "SWAT"), ("shield_up_02", 0, "SWAT")],
+        "down": [("tools_shield_down_01", 0, "SWAT"), ("tools_shield_down_02", 0, "SWAT")],
+    })
+    p.event("shield.hit", [p.write("shield", f"hit_{i}", load(f"weap_shield_bullet_hit_0{i}"), mono=True) for i in range(2, 7)],
+            "subtitles.ronweapons.shield.hit")
+    p.event("shield.bash", [p.write("shield", f"bash_{i}", load(f"imp_bash_hit_0{i}", 0, "Interactions"), mono=True) for i in range(1, 5)])
+    for base_id in ("g19", "python"):
+        c = {"draw": [[0.0, "shield.draw"]], "raise": [[0.0, "shield.up", 0.8]], "lower": [[0.0, "shield.down", 0.7]]}
+        for act, rel in shield_reloads(base_id).items():
+            c[act] = rel
+        cues[base_id + "_shield"] = c
+
+    # ---------------- night vision, weapon light, ringing ears
+    p.event("nvg.on", [p.write("nvg", "on", mix((load("NVG_On_V2", 0, "Interactions"), 1.0, 0),
+                                                (load("NVG_On_Whine_Short", 0, "Interactions"), 0.6, 0.05)), mono=True)])
+    p.event("nvg.off", [p.write("nvg", "off", load("NVG_Off", 0, "Interactions"), mono=True)])
+    p.event("light.toggle", [p.write("light", f"click_{i}", load(f"weap_ump45_switch_0{i}", 0, "SWAT"), mono=True) for i in (1, 2)])
+    p.event("fx.tinnitus", [p.write("fx", "tinnitus", tinnitus())])
 
     # brass hitting the floor (client debris)
     for wid, kind in (("m4a1", "556"), ("g19", "9mm"), ("python", "9mm"), ("m590", "SH")):

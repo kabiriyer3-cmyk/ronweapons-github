@@ -66,6 +66,7 @@ WEAPONS = {
             {"id": "t2", "mesh": f"{ATT}/Optic_MicroT2/SK_MicroT2_TallMount", "socket": "MicroT2Raised_Socket", "style": "dot", "hide": ["Weapon_1P_M4A1_CARRYHANDLE_INST"]},
         ],
         "suppressor": {"mesh": f"{ATT}/Suppressor_SOCOM338/sk_suppressor_socom338", "socket": "socom338_socket"},
+        "light": {"mesh": f"{ATT}/Flashlight_M600V/sk_illum_flashlight_M600V", "socket": "light_socket"},
         "tp": {"back": 0.30},
         "actions": {
             "draw":         (f"{M4FP}/arms/fp_m4a1_add_draw", None),
@@ -80,6 +81,9 @@ WEAPONS = {
             "magcheck":     (f"{M4FP}/arms/fp_m4a1_add_mag_check", f"{M4FP}/weapon/fp_m4a1_add_mag_check"),
             "select_auto":  (f"{M4FP}/arms/fp_m4a1_add_fire_select_auto", None),
             "select_semi":  (f"{M4FP}/arms/fp_m4a1_add_fire_select_semi", None),
+            # flip the goggles down / up (RoN's clips are built on the M4 idle pose)
+            "nvg_on":       (f"{A}/Revised/FirstPerson/Weapons/Fiveseven/arms/game_feel/fp_m4a1_add_enable_swat_nvg", None),
+            "nvg_off":      (f"{A}/Revised/FirstPerson/Weapons/Fiveseven/arms/game_feel/fp_m4a1_add_disable_swat_nvg", None),
         },
     },
     "g19": {
@@ -97,6 +101,7 @@ WEAPONS = {
             {"id": "sro", "mesh": f"{ATT}/Optic_SRO/sk_optic_sro_glock", "socket": "SROPistol_Socket", "style": "dot"},
         ],
         "suppressor": {"mesh": f"{ATT}/Mesh/Pistol_SuppressorSmall", "socket": "supressor_socket"},
+        "light": {"mesh": f"{ATT}/Light_X300/SK_Pistol_light_X300", "socket": "light_socket"},
         "tp": {"back": 0.0},
         "actions": {
             "draw":         (f"{G19FP}/arms/fp_g19_add_draw", None),
@@ -146,6 +151,7 @@ WEAPONS = {
             {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M590/Meshes/Shells_Scaled/m590_buckshot_static_shell",
              "file": "shell", "sockets": ["tag_bullet_socket"], "hide_y_above": 3.5},
         ],
+        "light": {"mesh": f"{ATT}/Mesh/Shotgun_Flashlight", "socket": "light_socket"},
         "tp": {"back": 0.35},
         "actions": {
             # weapon idle / draw clips are ACL-only: frame 0 of the fire clip is the rest pose (pump forward, shell in the tube)
@@ -174,6 +180,85 @@ WEAPONS["zipcuffs"] = {
         "restrain": (f"{ZIP}/fp_zipcuffs_add_restrain_downed", None),
     },
 }
+
+# ---------------- v7: grenades, ballistic shield, NVG
+# Grenades: one arms set for all three (the flashbang's), each grenade's own pin-pull / throw weapon clips (Grenades_V2).
+# RoN's grenade draw / idle weapon clips are ACL-only: the first frame of the pin pull is the rest pose.
+FL, GV2 = f"{A}/FP/FLASH/base_male", f"{A}/FP/Grenades_V2"
+STR = f"{A}/Revised/FirstPerson/Weapons/Stinger/arms"
+for gid, folder, prefix in (("flashbang", "Flashbang", "flashbang"), ("stinger", "Stinger", "stinger"), ("csgas", "CSGas", "csgas")):
+    start_w = f"{GV2}/{folder}/weapon/fp_{prefix}_add_overarm_throw_start_weapon"
+    throw_w = f"{GV2}/{folder}/weapon/fp_{prefix}_add_overarm_throw_weapon"
+    WEAPONS[gid] = {
+        "gun": f"ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/New_Weapons/Grenades/Meshes/SK_Grenade_{folder}_V2",
+        "ads_eye": [0.0, None, 0.0],
+        "tp": {"back": 0.0, "yaw": 0.0},
+        # the grenade leaves the hand this far into the throw clips (GrenadeClient releases at the same time)
+        "hide_after": {"throw": 0.24, "throw_under": 0.34},
+        "actions": {
+            "draw":              (f"{A}/FP/STING/base_male/fp_stinger_add_draw" if gid == "stinger" else f"{FL}/fp_flashbang_add_draw", None),
+            "idle":              (f"{FL}/fp_flashbang_idle_pose", (start_w, "first")),
+            "throw_start":       (f"{FL}/fp_flashbang_add_overarm_throw_start", start_w),
+            "throw":             (f"{FL}/fp_flashbang_add_overarm_throw", throw_w),
+            "throw_under_start": (f"{STR}/fp_stinger_add_underarm_throw_start", start_w),
+            "throw_under":       (f"{STR}/fp_stinger_add_underarm_throw", (start_w, "last")),
+        },
+    }
+
+# Ballistic shield: RoN's Five-seven shield arms carry the shield on ShieldAttachSocket (left forearm); our pistols ride
+# weapon_right as usual. Right click raises it (idle_up), the ADS correction comes from the raised pose.
+SHB = f"{A}/FP/Shield/Fiveseven/base_male"
+SHR = f"{A}/Revised/FirstPerson/Weapons/Fiveseven/arms/shield"
+SHIELD_MESH = "ReadyOrNot/Content/ReadyOrNot/Assets/Devices/Deployables/Ballistic_Shield/Mesh/SK_Device_Ballistic_Shield"
+for base_id, reload_w in (("g19", {"reload_tac": f"{A}/FP/Shield/G19/ron_g19/fp_g19_add_shield_reload_low_weapon",
+                                   "reload_empty": f"{A}/FP/Shield/G19/ron_g19/fp_g19_add_shield_reload_empty_low_weapon",
+                                   "reload_tac_up": f"{A}/FP/Shield/G19/ron_g19/fp_g19_add_shield_reload_up_weapon",
+                                   "reload_empty_up": f"{A}/FP/Shield/G19/ron_g19/fp_g19_add_shield_reload_empty_UP_weapon"}),
+                          ("python", {"reload_tac": f"{A}/FP/Shield/Python/ron_python/fp_python_add_shield_reload_low_weapon",
+                                      "reload_empty": f"{A}/FP/Shield/Python/ron_python/fp_python_add_shield_reload_low_weapon",
+                                      "reload_tac_up": f"{A}/FP/Shield/Python/ron_python/fp_python_add_shield_reload_up_weapon",
+                                      "reload_empty_up": f"{A}/FP/Shield/Python/ron_python/fp_python_add_shield_reload_up_weapon"})):
+    src = WEAPONS[base_id]
+    wa = {k: v[1] for k, v in src["actions"].items()}
+    rig = {k: v for k, v in src.items() if k not in ("actions", "tp")}
+    rig.update({
+        "tp": {"back": 0.0},
+        "arms_attachment": {"mesh": SHIELD_MESH, "bone": "ShieldAttachSocket"},
+        "ads_from": "idle_up", "ads_time": 0.45,
+        "actions": {
+            "draw":        (f"{SHB}/fp_fiveseven_add_shield_low_draw", None),
+            "idle":        (f"{SHB}/fp_fiveseven_shield_low_idle_pose", wa.get("idle")),
+            "idle_empty":  (None, wa.get("idle_empty")),
+            "idle_up":     (f"{SHB}/fp_fiveseven_add_shield_up_idle", None),
+            "walk_up":     (f"{SHB}/fp_fiveseven_add_shield_up_walk", None),
+            "raise":       (f"{SHB}/fp_fiveseven_add_shield_low_to_up", None),
+            "lower":       (f"{SHB}/fp_fiveseven_add_shield_up_to_low", None),
+            "fire":        (f"{SHB}/fp_fiveseven_add_shield_up_fire", wa.get("fire")),
+            "fire_last":   (f"{SHB}/fp_fiveseven_add_shield_up_fire", wa.get("fire_last")),
+            "dryfire":     (f"{SHR}/fp_fiveseven_add_shield_up_dryfire", wa.get("dryfire")),
+            "bash":        (f"{SHB}/fp_fiveseven_shield_low_bash", None),
+            "bash_up":     (f"{SHB}/fp_fiveseven_shield_up_bash", None),
+            **{k: (f"{SHB}/fp_shield_reload_generic", v) for k, v in reload_w.items()},
+        },
+    })
+    rig["actions"] = {k: v for k, v in rig["actions"].items() if v[0] or v[1]}
+    WEAPONS[base_id + "_shield"] = rig
+    FX[base_id + "_shield"] = FX[base_id]
+
+# item-only rigs (inventory / hands / ground models): the shield and the goggles as the "gun" mesh
+WEAPONS["shield"] = {"gun": SHIELD_MESH, "glass": True, "ads_eye": [0.0, None, 0.0], "tp": {"back": 0.0, "yaw": 0.0, "offset": [0.0, 0.0, 0.0]},
+                     "actions": {"idle": (f"{SHB}/fp_fiveseven_shield_low_idle_pose", None)}}
+WEAPONS["nvg"] = {"gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Devices/Nightvision/Meshes/SK_Equipment_SWAT_NVG", "ads_eye": [0.0, None, 0.0],
+                  "tp": {"back": 0.0, "yaw": 0.0}, "actions": {"idle": (f"{FL}/fp_flashbang_idle_pose", None)}}
+
+# RoN game-feel reactions (arms only) for every hand-held rig
+AFF = f"{A}/FP/Gamefeel/base_male"
+for wid, w in WEAPONS.items():
+    if wid in ("shield", "nvg"):
+        continue
+    for kind, name in (("flash", "Flashbang"), ("gas", "CS_Gas"), ("sting", "Stinger")):
+        for part in ("start", "loop", "end"):
+            w["actions"].setdefault(f"aff_{kind}_{part}", (f"{AFF}/{name}_Affected_{part}", None))
 
 RETICLE_RGB = (255, 36, 24)
 SKIP_MATERIAL = ("glass", "invisible")
@@ -292,6 +377,11 @@ class Textures:
             return f"{NS}:textures/ron/skip.png"
         if mat.startswith("#reticle"):
             return self.reticles[folder]
+        if mat.startswith("#glass"):
+            dst = os.path.join(self.pack_dir, "assets", NS, "textures", "ron", "glass.png")
+            if not os.path.exists(dst):
+                Image.new("RGBA", (4, 4), (170, 190, 200, 255)).save(dst)
+            return f"{NS}:textures/ron/glass.png"
         src = material_texture(mat)
         if not src:
             print(f"  ! no base colour for material {mat}, using a grey placeholder")
@@ -454,6 +544,8 @@ def main():
         os.makedirs(os.path.join(base, "anims"))
         tf = lambda m, wid=wid: tex.for_material(m, wid)
         gun = read_psk(src)
+        if w.get("glass"):
+            gun.materials = ["#glass " + x if "glass" in x.lower() else x for x in gun.materials]
         print(f"== {wid}: gun", write_mesh(gun, os.path.join(base, "gun.ronmesh"), tf, rigid=True))
         meta = {"ads_eye": w["ads_eye"], "attachments": []}
         for att in w.get("attachments", []):
@@ -500,6 +592,34 @@ def main():
                 meta["suppressor"] = {"mesh": "suppressor", "socket": sp["socket"]}
             else:
                 print(f"  ! suppressor {sp['mesh']} not exported")
+        lt = w.get("light")
+        if lt:
+            p = exported(lt["mesh"], ".psk")
+            if p and socket_matrix(gun, lt["socket"]) is not None:
+                m = read_psk(p)
+                m.materials = ["#skip " + x if any(k in x.lower() for k in SKIP_MATERIAL) else x for x in m.materials]
+                lens = [0.0, 0.0, 0.0]
+                for i, b in enumerate(m.bones):
+                    if b.name.lower() == "light":
+                        _, inv_l = bind_data(m)
+                        lens = [round(float(v), 3) for v in np.linalg.inv(inv_l[i])[:3, 3]]
+                print("   light:", write_mesh(m, os.path.join(base, "light.ronmesh"), tf, rigid=True), "lens", lens)
+                meta["light"] = {"mesh": "light", "socket": lt["socket"], "lens": lens}
+            else:
+                print(f"  ! light {lt['mesh']} or socket {lt['socket']} missing")
+        aa = w.get("arms_attachment")
+        if aa:
+            p = exported(aa["mesh"], ".psk")
+            if p:
+                m = read_psk(p)
+                m.materials = ["#glass " + x if "glass" in x.lower() else x for x in m.materials]
+                print("   arms attachment:", write_mesh(m, os.path.join(base, "shield.ronmesh"), tf, rigid=True))
+                meta["arms_attachment"] = {"mesh": "shield", "bone": aa["bone"]}
+            else:
+                print(f"  ! arms attachment {aa['mesh']} not exported")
+        for k in ("hide_after", "ads_from", "ads_time"):
+            if k in w:
+                meta[k] = w[k]
         if "tp" in w:
             meta["tp"] = w["tp"]
         fx = dict(FX.get(wid, {}))

@@ -33,7 +33,16 @@ public final class GunRig {
     static final String[] ACTIONS = {
             "draw", "idle", "idle_empty", "walk", "run", "fire", "fire_last", "fire_ads",
             "reload_tac", "reload_empty", "magcheck", "select_auto", "select_semi",
-            "reload_start", "reload_start_empty", "reload_loop", "reload_end", "dryfire", "restrain"
+            "reload_start", "reload_start_empty", "reload_loop", "reload_end", "dryfire", "restrain",
+            // ballistic shield rigs: shield raised locomotion + transitions, reloads with the shield up, bashes
+            "idle_up", "walk_up", "raise", "lower", "reload_tac_up", "reload_empty_up", "bash", "bash_up",
+            // grenades: pull the pin and hold (held at the last frame), release
+            "throw_start", "throw", "throw_under_start", "throw_under",
+            // M4: flip the goggles down / up
+            "nvg_on", "nvg_off",
+            // RoN game-feel reactions (arms only): flashed, gassed, stung
+            "aff_flash_start", "aff_flash_loop", "aff_flash_end", "aff_gas_start", "aff_gas_loop", "aff_gas_end",
+            "aff_sting_start", "aff_sting_loop", "aff_sting_end"
     };
 
     /** One RoN action: an arms clip and (optionally) the matching weapon clip, mapped to mesh bones. */
@@ -70,6 +79,12 @@ public final class GunRig {
     /** A muzzle device (suppressor) on a gun socket. */
     public record Muzzle(RonMesh mesh, int socket) {}
 
+    /** A mesh carried by an arms bone (the ballistic shield on ShieldAttachSocket). */
+    public record ArmsAttachment(RonMesh mesh, int bone) {}
+
+    /** Weapon light on a gun socket; lens: beam origin in socket space (cm). */
+    public record Light(RonMesh mesh, int socket, float[] lens) {}
+
     public final String id;
     public final RonMesh arms, gun;
     public final List<Attachment> attachments = new ArrayList<>();
@@ -86,6 +101,13 @@ public final class GunRig {
     public final Map<String, Optic> optics = new HashMap<>();
     public Muzzle suppressor;
     public FxConfig fx;
+    public ArmsAttachment armsAttachment;
+    public Light light;
+    /** action -> seconds after which the gun mesh is not drawn (the grenade has left the hand) */
+    public final Map<String, Float> hideAfter = new HashMap<>();
+    /** ADS correction computed from this action's pose instead of idle (shield: from the raised pose); ADS blend time */
+    public String adsFrom = "idle";
+    public float adsTime = 0.18f;
     /** third person: how far (blocks) the gun sits back from the fist so the stock reaches the shoulder; yaw undoes the crossbow-pose inward angle */
     public float tpBack, tpYaw = -17.2f;
     /** third person: fist centre relative to the held-item frame (blocks); tweakable from rig.json "tp": {"offset": [x, y, z]} */
@@ -187,6 +209,26 @@ public final class GunRig {
                     f.has("mag_cue") ? f.get("mag_cue").getAsString() : null, mag, magSocket,
                     f.has("land_sound") ? RonWeapons.id(f.get("land_sound").getAsString()) : null);
         }
+        if (o.has("arms_attachment")) {
+            JsonObject aa = o.getAsJsonObject("arms_attachment");
+            Optional<Resource> r = rm.getResource(RonWeapons.id(base + aa.get("mesh").getAsString() + ".ronmesh"));
+            int bone = arms.bone(aa.get("bone").getAsString());
+            if (r.isPresent() && bone >= 0) armsAttachment = new ArmsAttachment(RonMesh.read(r.get().getInputStream()), bone);
+        }
+        if (o.has("light")) {
+            JsonObject l = o.getAsJsonObject("light");
+            Optional<Resource> r = rm.getResource(RonWeapons.id(base + l.get("mesh").getAsString() + ".ronmesh"));
+            int socket = gun.bone(l.get("socket").getAsString());
+            float[] lens = new float[3];
+            if (l.has("lens")) for (int k = 0; k < 3; k++) lens[k] = l.getAsJsonArray("lens").get(k).getAsFloat();
+            if (r.isPresent() && socket >= 0) light = new Light(RonMesh.read(r.get().getInputStream()), socket, lens);
+        }
+        if (o.has("hide_after")) {
+            JsonObject h = o.getAsJsonObject("hide_after");
+            for (String k : h.keySet()) hideAfter.put(k, h.get(k).getAsFloat());
+        }
+        if (o.has("ads_from")) adsFrom = o.get("ads_from").getAsString();
+        if (o.has("ads_time")) adsTime = o.get("ads_time").getAsFloat();
         if (o.has("tp")) {
             JsonObject tp = o.getAsJsonObject("tp");
             if (tp.has("back")) tpBack = tp.get("back").getAsFloat();

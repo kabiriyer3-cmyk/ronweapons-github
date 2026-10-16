@@ -13,6 +13,11 @@ public record ActionPayload(byte action) implements CustomPayload {
     public static final byte RELOAD_CANCEL = 3;
     public static final byte TOGGLE_SUPPRESSOR = 4;
     public static final byte CYCLE_OPTIC = 5;
+    public static final byte TOGGLE_LIGHT = 6;
+    public static final byte TOGGLE_NVG = 7;
+    public static final byte SHIELD_BASH = 8;
+    public static final byte THROW_OVER = 9;
+    public static final byte THROW_UNDER = 10;
 
     public static final Id<ActionPayload> ID = new Id<>(RonWeapons.id("action"));
     public static final PacketCodec<RegistryByteBuf, ActionPayload> CODEC =

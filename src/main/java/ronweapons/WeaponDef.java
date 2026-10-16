@@ -42,4 +42,10 @@ public record WeaponDef(String id, String name, int magSize, float damage, boole
     public boolean shellReload() { return shell != null; }
 
     public int opticCount() { return optics.length; }
+
+    /** a weapon light on the rail (RoN: M600V on the M4, X300 on the Glock, the 590's forend light); the Python has none */
+    public boolean hasLight() { return !id.equals("python"); }
+
+    /** handguns can be carried with the ballistic shield in the other hand */
+    public boolean shieldable() { return id.equals("g19") || id.equals("python"); }
 }

@@ -27,6 +27,20 @@ public final class ItemModelRenderer {
      * (X right, Y up along the arm's front, -Z where the arm points), so psk maps like first person: x = -x, y = z, z = y.
      */
     private static final Matrix4f TP_AXES = new Matrix4f(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1).scale(0.01f);
+    /** shield in the off hand: its height runs along the arm (+Z), its face (-Y) to the front (+Y): x = -x, y = -y, z = z */
+    private static final Matrix4f SHIELD_TP_AXES = new Matrix4f(-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1).scale(0.01f);
+
+    /** pack folder of the RoN mesh drawn for this item, or null (vanilla model) */
+    public static String rigId(ItemStack stack) {
+        WeaponDef def = RonWeapons.def(stack);
+        if (def != null) return def.id();
+        if (stack.getItem() instanceof ronweapons.GrenadeItem g) return g.kind.id;
+        if (stack.getItem() instanceof ronweapons.ShieldItem) return "shield";
+        if (stack.getItem() instanceof ronweapons.NvgItem) return "nvg";
+        return null;
+    }
+
+    public static boolean handles(ItemStack stack) { return rigId(stack) != null; }
 
     private record Part(RonMesh mesh, float[][] pn, boolean[] hide) {}
     private record Baked(GunRig rig, List<Part> parts) {}
@@ -36,17 +50,20 @@ public final class ItemModelRenderer {
     public static boolean render(ItemStack stack, ModelTransformationMode mode, boolean leftHanded, MatrixStack matrices,
                                  VertexConsumerProvider consumers, int light, int overlay) {
         boolean tp = mode == ModelTransformationMode.THIRD_PERSON_RIGHT_HAND || mode == ModelTransformationMode.THIRD_PERSON_LEFT_HAND;
+        String rigId = rigId(stack);
+        if (rigId == null) return false;
+        // goggles on the head: RoN's mesh sits on its own head bone, no clean place on the vanilla head -> not drawn
+        if (mode == ModelTransformationMode.HEAD && rigId.equals("nvg")) return true;
         if (!tp && mode != ModelTransformationMode.GUI && mode != ModelTransformationMode.GROUND && mode != ModelTransformationMode.FIXED) return false;
         WeaponDef def = RonWeapons.def(stack);
-        if (def == null) return false;
-        GunRig rig = GunRig.get(MinecraftClient.getInstance().getResourceManager(), def.id());
+        GunRig rig = GunRig.get(MinecraftClient.getInstance().getResourceManager(), rigId);
         if (rig == null) return false;
-        String opticId = def.optics()[RonWeapons.optic(stack)];
+        String opticId = def == null ? "iron" : def.optics()[RonWeapons.optic(stack)];
         GunRig.Optic optic = rig.optics.get(opticId);
         boolean supp = RonWeapons.suppressed(stack) && rig.suppressor != null;
-        String key = def.id() + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp;
+        String key = rigId + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp;
         Baked b = CACHE.get(key);
-        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp));
+        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp, rigId.equals("shield")));
 
         matrices.push();
         switch (mode) {
@@ -77,7 +94,7 @@ public final class ItemModelRenderer {
     }
 
     /** Bakes once per rig + attachment state. Icons fit the whole silhouette into one item unit; third person keeps real size. */
-    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp) {
+    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp, boolean shield) {
         List<RonMesh> meshes = new ArrayList<>();
         List<Matrix4f> bases = new ArrayList<>();
         List<boolean[]> hides = new ArrayList<>();
@@ -87,8 +104,9 @@ public final class ItemModelRenderer {
         }
         if (optic != null) { meshes.add(optic.mesh()); bases.add(rig.gun.bindGlobal[optic.socket()]); hides.add(null); }
         if (supp) { meshes.add(rig.suppressor.mesh()); bases.add(rig.gun.bindGlobal[rig.suppressor.socket()]); hides.add(null); }
+        if (rig.light != null) { meshes.add(rig.light.mesh()); bases.add(rig.gun.bindGlobal[rig.light.socket()]); hides.add(null); }
 
-        Matrix4f axes = tp ? TP_AXES : AXES;
+        Matrix4f axes = tp ? (shield ? SHIELD_TP_AXES : TP_AXES) : AXES;
         if (!tp) {
             float[] lo = {Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE}, hi = {-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE};
             for (int i = 0; i < meshes.size(); i++) bounds(bakeOne(meshes.get(i), AXES, bases.get(i))[0], lo, hi);

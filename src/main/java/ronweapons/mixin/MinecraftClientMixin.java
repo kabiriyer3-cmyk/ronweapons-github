@@ -13,17 +13,17 @@ import ronweapons.client.RonWeaponsClient;
 public abstract class MinecraftClientMixin {
     @Inject(method = "doAttack", at = @At("HEAD"), cancellable = true)
     private void ronweapons$noMelee(CallbackInfoReturnable<Boolean> cir) {
-        if (RonWeaponsClient.holdingGun()) cir.setReturnValue(false);
+        if (RonWeaponsClient.holdingGun() || ronweapons.client.GrenadeClient.holdingGrenade()) cir.setReturnValue(false);
     }
 
     /** With the zipcuffs out, right click restrains (CuffClient) instead of trading with / using the mob. */
     @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
     private void ronweapons$cuffUse(CallbackInfo ci) {
-        if (ronweapons.client.CuffClient.holdingCuffs()) ci.cancel();
+        if (ronweapons.client.CuffClient.holdingCuffs() || ronweapons.client.GrenadeClient.holdingGrenade()) ci.cancel();
     }
 
     @Inject(method = "handleBlockBreaking", at = @At("HEAD"), cancellable = true)
     private void ronweapons$noMining(boolean breaking, CallbackInfo ci) {
-        if (RonWeaponsClient.holdingGun()) ci.cancel();
+        if (RonWeaponsClient.holdingGun() || ronweapons.client.GrenadeClient.holdingGrenade()) ci.cancel();
     }
 }

@@ -33,7 +33,7 @@ public final class RonMesh {
     public final Identifier[] textures;
     /** material names; the pack builder marks lens glass / invisible helpers "#skip" and reticle planes "#reticle" */
     public final String[] materialNames;
-    private final byte[] materialKind; // 0 normal, 1 skip, 2 reticle (emissive, translucent)
+    private final byte[] materialKind; // 0 normal, 1 skip, 2 reticle (emissive, translucent), 3 glass (translucent: shield viewport)
     public final int vertexCount;
     final float[] pos, nrm, uv;
     final short[] bIdx;
@@ -76,7 +76,8 @@ public final class RonMesh {
         for (int m = 0; m < nm; m++) {
             materialNames[m] = d.readUTF();
             textures[m] = Identifier.of(d.readUTF());
-            materialKind[m] = (byte) (materialNames[m].startsWith("#skip") ? 1 : materialNames[m].startsWith("#reticle") ? 2 : 0);
+            materialKind[m] = (byte) (materialNames[m].startsWith("#skip") ? 1 : materialNames[m].startsWith("#reticle") ? 2
+                    : materialNames[m].startsWith("#glass") ? 3 : 0);
         }
         vertexCount = d.readInt();
         pos = new float[vertexCount * 3];
@@ -221,23 +222,24 @@ public final class RonMesh {
         for (int s = 0; s < sectionIndices.length; s++) {
             int mat = sectionMaterial[s];
             if (materialKind[mat] == 1 || (hide != null && mat < hide.length && hide[mat])) continue;
-            boolean reticle = materialKind[mat] == 2;
+            boolean reticle = materialKind[mat] == 2, glass = materialKind[mat] == 3;
             VertexConsumer vc = consumers.getBuffer(reticle ? RenderLayer.getEntityTranslucentEmissive(textures[mat])
-                    : RenderLayer.getEntityCutoutNoCull(textures[mat]));
+                    : glass ? RenderLayer.getEntityTranslucent(textures[mat]) : RenderLayer.getEntityCutoutNoCull(textures[mat]));
             int lt = reticle ? 0xF000F0 : light;
+            int alpha = glass ? 70 : 255;
             int[] idx = sectionIndices[s];
             for (int i = 0; i < idx.length; i += 3) {
-                corner(vc, pm, entry, p, n, idx[i], lt, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 1], lt, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay);
+                corner(vc, pm, entry, p, n, idx[i], lt, overlay, alpha);
+                corner(vc, pm, entry, p, n, idx[i + 1], lt, overlay, alpha);
+                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay, alpha);
+                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay, alpha);
             }
         }
     }
 
-    private void corner(VertexConsumer vc, Matrix4f pm, MatrixStack.Entry entry, float[] p, float[] n, int v, int light, int overlay) {
+    private void corner(VertexConsumer vc, Matrix4f pm, MatrixStack.Entry entry, float[] p, float[] n, int v, int light, int overlay, int alpha) {
         vc.vertex(pm, p[v * 3], p[v * 3 + 1], p[v * 3 + 2])
-                .color(255, 255, 255, 255)
+                .color(255, 255, 255, alpha)
                 .texture(uv[v * 2], uv[v * 2 + 1])
                 .overlay(overlay)
                 .light(light)

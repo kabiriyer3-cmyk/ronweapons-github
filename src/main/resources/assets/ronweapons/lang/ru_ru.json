@@ -38,5 +38,22 @@
   "ronweapons.cuffs.not_compliant": "Цель не подчиняется: сначала подави её (≤ 50% здоровья)",
   "ronweapons.cuffs.done": "Задержан: %s",
   "ronweapons.cuffs.released": "Освобождён: %s",
-  "ronweapons.cuffs.already": "Уже в стяжках (Shift + ПКМ, чтобы срезать)"
+  "ronweapons.cuffs.already": "Уже в стяжках (Shift + ПКМ, чтобы срезать)",
+  "item.ronweapons.flashbang": "Светошумовая граната",
+  "item.ronweapons.stinger": "Граната Stinger",
+  "item.ronweapons.csgas": "Граната с CS-газом",
+  "item.ronweapons.ballistic_shield": "Баллистический щит",
+  "item.ronweapons.nvg": "ПНВ",
+  "entity.ronweapons.grenade": "Граната",
+  "subtitles.ronweapons.flashbang": "Взрыв светошумовой",
+  "subtitles.ronweapons.stinger": "Взрыв Stinger",
+  "subtitles.ronweapons.csgas": "Хлопок CS-гранаты",
+  "subtitles.ronweapons.shield.hit": "Попадание в щит",
+  "key.ronweapons.light": "Фонарь на оружии",
+  "key.ronweapons.nvg": "ПНВ вкл/выкл",
+  "key.ronweapons.bash": "Удар щитом",
+  "ronweapons.light.on": "%s: фонарь ВКЛ",
+  "ronweapons.light.off": "%s: фонарь ВЫКЛ",
+  "ronweapons.light.none": "На %s нет фонаря",
+  "ronweapons.nvg.none": "Сначала надень ПНВ на голову"
 }

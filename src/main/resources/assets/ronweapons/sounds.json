@@ -244,5 +244,159 @@
       }
     ],
     "subtitle": "subtitles.ronweapons.zipcuffs.cut"
+  },
+  "flashbang.bang": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
+        "pitch": 1.4,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.flashbang"
+  },
+  "stinger.bang": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.large_blast",
+        "type": "event",
+        "pitch": 0.8,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.stinger"
+  },
+  "csgas.pop": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.launch",
+        "type": "event",
+        "pitch": 0.7,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.csgas"
+  },
+  "csgas.hiss": {
+    "sounds": [
+      {
+        "name": "minecraft:block.fire.extinguish",
+        "type": "event",
+        "pitch": 0.6,
+        "volume": 0.6
+      }
+    ]
+  },
+  "grenade.bounce": {
+    "sounds": [
+      {
+        "name": "minecraft:block.chain.hit",
+        "type": "event",
+        "pitch": 1.4,
+        "volume": 0.8
+      }
+    ]
+  },
+  "stinger.bounce": {
+    "sounds": [
+      {
+        "name": "minecraft:block.chain.hit",
+        "type": "event",
+        "pitch": 1.1,
+        "volume": 0.8
+      }
+    ]
+  },
+  "csgas.bounce": {
+    "sounds": [
+      {
+        "name": "minecraft:block.chain.hit",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.8
+      }
+    ]
+  },
+  "grenade.throw": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.snowball.throw",
+        "type": "event",
+        "pitch": 0.8,
+        "volume": 0.8
+      }
+    ]
+  },
+  "grenade.lever": {
+    "sounds": [
+      {
+        "name": "minecraft:block.tripwire.click_on",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ]
+  },
+  "shield.hit": {
+    "sounds": [
+      {
+        "name": "minecraft:item.shield.block",
+        "type": "event",
+        "pitch": 1.0,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.shield.hit"
+  },
+  "shield.bash": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.player.attack.knockback",
+        "type": "event",
+        "pitch": 0.9,
+        "volume": 1.0
+      }
+    ]
+  },
+  "nvg.on": {
+    "sounds": [
+      {
+        "name": "minecraft:block.beacon.activate",
+        "type": "event",
+        "pitch": 2.0,
+        "volume": 0.4
+      }
+    ]
+  },
+  "nvg.off": {
+    "sounds": [
+      {
+        "name": "minecraft:block.beacon.deactivate",
+        "type": "event",
+        "pitch": 2.0,
+        "volume": 0.4
+      }
+    ]
+  },
+  "light.toggle": {
+    "sounds": [
+      {
+        "name": "minecraft:block.stone_button.click_on",
+        "type": "event",
+        "pitch": 1.8,
+        "volume": 0.5
+      }
+    ]
+  },
+  "fx.tinnitus": {
+    "sounds": [
+      {
+        "name": "minecraft:block.note_block.chime",
+        "type": "event",
+        "pitch": 2.0,
+        "volume": 0.3
+      }
+    ]
   }
 }

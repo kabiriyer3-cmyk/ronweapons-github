@@ -16,6 +16,12 @@ import net.minecraft.block.BlockState;
 import net.minecraft.component.ComponentType;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.component.type.AttributeModifierSlot;
+import net.minecraft.component.type.AttributeModifiersComponent;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnGroup;
+import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
@@ -55,6 +61,12 @@ public final class RonWeapons implements ModInitializer {
             ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
     public static final ComponentType<Boolean> SUPPRESSOR = Registry.register(Registries.DATA_COMPONENT_TYPE, id("suppressor"),
             ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
+    /** weapon light switched on */
+    public static final ComponentType<Boolean> LIGHT = Registry.register(Registries.DATA_COMPONENT_TYPE, id("light"),
+            ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
+    /** night vision goggles switched on */
+    public static final ComponentType<Boolean> NVG_ON = Registry.register(Registries.DATA_COMPONENT_TYPE, id("nvg_on"),
+            ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
 
     /** Sounds every weapon has (fireSupp only for suppressible ones). The shooter hears 1P versions client-side. */
     public record Sounds(SoundEvent fire, SoundEvent fireSupp, SoundEvent reload, SoundEvent dry) {}
@@ -76,6 +88,38 @@ public final class RonWeapons implements ModInitializer {
     public static final Item ZIPCUFFS = Registry.register(Registries.ITEM, id("zipcuffs"), new ZipcuffsItem(new Item.Settings().maxCount(16)));
     public static final SoundEvent SND_CUFF = sound("zipcuffs.cuff_3p");
     public static final SoundEvent SND_CUT = sound("zipcuffs.cut");
+
+    public static final Map<GrenadeItem.Kind, GrenadeItem> GRENADES = new LinkedHashMap<>();
+    static {
+        for (GrenadeItem.Kind k : GrenadeItem.Kind.values()) {
+            GRENADES.put(k, Registry.register(Registries.ITEM, id(k.id), new GrenadeItem(k, new Item.Settings().maxCount(8))));
+        }
+    }
+    public static final Item SHIELD = Registry.register(Registries.ITEM, id("ballistic_shield"), new ShieldItem(new Item.Settings().maxCount(1)
+            .attributeModifiers(AttributeModifiersComponent.builder().add(EntityAttributes.GENERIC_MOVEMENT_SPEED,
+                    new EntityAttributeModifier(id("shield_weight"), -0.15, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL),
+                    AttributeModifierSlot.HAND).build())));
+    public static final Item NVG = Registry.register(Registries.ITEM, id("nvg"), new NvgItem(new Item.Settings().maxCount(1)));
+
+    public static final EntityType<GrenadeEntity> GRENADE_ENTITY = Registry.register(Registries.ENTITY_TYPE, id("grenade"),
+            EntityType.Builder.<GrenadeEntity>create(GrenadeEntity::new, SpawnGroup.MISC).dimensions(0.22f, 0.22f)
+                    .maxTrackingRange(8).trackingTickInterval(1).build("grenade"));
+
+    public static final SoundEvent SND_FLASHBANG = sound("flashbang.bang");
+    public static final SoundEvent SND_STINGER = sound("stinger.bang");
+    public static final SoundEvent SND_CSGAS_POP = sound("csgas.pop");
+    public static final SoundEvent SND_CSGAS_HISS = sound("csgas.hiss");
+    public static final SoundEvent SND_GRENADE_BOUNCE = sound("grenade.bounce");
+    public static final SoundEvent SND_STINGER_BOUNCE = sound("stinger.bounce");
+    public static final SoundEvent SND_CSGAS_BOUNCE = sound("csgas.bounce");
+    public static final SoundEvent SND_GRENADE_THROW = sound("grenade.throw");
+    public static final SoundEvent SND_GRENADE_LEVER = sound("grenade.lever");
+    public static final SoundEvent SND_SHIELD_HIT = sound("shield.hit");
+    public static final SoundEvent SND_SHIELD_BASH = sound("shield.bash");
+    public static final SoundEvent SND_NVG_ON = sound("nvg.on");
+    public static final SoundEvent SND_NVG_OFF = sound("nvg.off");
+    public static final SoundEvent SND_LIGHT = sound("light.toggle");
+    public static final SoundEvent SND_TINNITUS = sound("fx.tinnitus");
 
     private static SoundEvent sound(String path) {
         return Registry.register(Registries.SOUND_EVENT, id(path), SoundEvent.of(id(path)));
@@ -122,8 +166,14 @@ public final class RonWeapons implements ModInitializer {
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
             ITEMS.values().forEach(item -> entries.add(item));
             entries.add(ZIPCUFFS);
+            GRENADES.values().forEach(item -> entries.add(item));
+            entries.add(SHIELD);
+            entries.add(NVG);
         });
         Cuffs.init();
+        Stun.init();
+        Gear.init();
+        PayloadTypeRegistry.playS2C().register(ronweapons.net.FlashPayload.ID, ronweapons.net.FlashPayload.CODEC);
 
         PayloadTypeRegistry.playC2S().register(FirePayload.ID, FirePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ActionPayload.ID, ActionPayload.CODEC);
@@ -172,6 +222,12 @@ public final class RonWeapons implements ModInitializer {
     }
 
     private static void action(ServerPlayerEntity player, byte action) {
+        switch (action) {
+            case ActionPayload.TOGGLE_NVG -> { Gear.toggleNvg(player); return; }
+            case ActionPayload.SHIELD_BASH -> { Gear.bash(player); return; }
+            case ActionPayload.THROW_OVER, ActionPayload.THROW_UNDER -> { Grenades.throwFrom(player, action == ActionPayload.THROW_UNDER); return; }
+            default -> { }
+        }
         ItemStack stack = player.getMainHandStack();
         WeaponDef d = def(stack);
         if (d == null) return;
@@ -204,6 +260,7 @@ public final class RonWeapons implements ModInitializer {
                 if (busy || !d.suppressible()) return;
                 stack.set(SUPPRESSOR, !suppressed(stack));
             }
+            case ActionPayload.TOGGLE_LIGHT -> Gear.toggleLight(player, stack, d);
             case ActionPayload.CYCLE_OPTIC -> {
                 if (busy || d.opticCount() < 2) return;
                 stack.set(OPTIC, (optic(stack) + 1) % d.opticCount());

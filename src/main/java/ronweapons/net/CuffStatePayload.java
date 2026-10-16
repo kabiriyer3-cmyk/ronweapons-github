@@ -11,6 +11,8 @@ public record CuffStatePayload(int entity, byte state, int cuffer) implements Cu
     public static final byte FREE = 0;
     public static final byte CUFFING = 1;
     public static final byte CUFFED = 2;
+    /** flashed / stung / gassed: hands up, no AI (Stun) */
+    public static final byte STUNNED = 3;
 
     public static final Id<CuffStatePayload> ID = new Id<>(RonWeapons.id("cuff_state"));
     public static final PacketCodec<RegistryByteBuf, CuffStatePayload> CODEC = PacketCodec.tuple(

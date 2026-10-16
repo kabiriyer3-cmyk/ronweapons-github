@@ -47,7 +47,8 @@ public final class CuffClient {
                 CUFFERS.put(p.cuffer(), now);
             }
             case CuffStatePayload.CUFFED -> STATES.put(p.entity(), new State(p.state(),
-                    old != null ? old.startNs() : now - 10_000_000_000L, -1));
+                    old != null && old.state() == CuffStatePayload.CUFFING ? old.startNs() : now - 10_000_000_000L, -1));
+            case CuffStatePayload.STUNNED -> STATES.put(p.entity(), new State(p.state(), now, -1));
             default -> {
                 STATES.remove(p.entity());
                 if (p.entity() == target) abort(false);
@@ -60,7 +61,14 @@ public final class CuffClient {
         State s = STATES.get(e.getId());
         if (s == null) return -1f;
         float t = (System.nanoTime() - s.startNs()) / 1e9f / POSE_TIME;
+        // stunned: hands up and kept there (the first part of the arrest pose)
+        if (s.state() == CuffStatePayload.STUNNED) return Math.min(0.3f, t);
         return s.state() == CuffStatePayload.CUFFED ? Math.min(1f, Math.max(t, 0.75f)) : Math.min(0.95f, t);
+    }
+
+    public static boolean stunned(Entity e) {
+        State s = STATES.get(e.getId());
+        return s != null && s.state() == CuffStatePayload.STUNNED;
     }
 
     public static boolean cuffed(Entity e) {
@@ -113,7 +121,7 @@ public final class CuffClient {
                     if (pl.isSneaking()) ClientPlayNetworking.send(new CuffPayload(CuffPayload.RELEASE, e.getId()));
                     else pl.sendMessage(Text.translatable("ronweapons.cuffs.already"), true);
                 } else if (Cuffs.canCuff(e)) {
-                    if (m instanceof Monster && ((LivingEntity) m).getHealth() > m.getMaxHealth() * 0.5f) {
+                    if (m instanceof Monster && !stunned(m) && ((LivingEntity) m).getHealth() > m.getMaxHealth() * 0.5f) {
                         pl.sendMessage(Text.translatable("ronweapons.cuffs.not_compliant"), true);
                     } else {
                         target = e.getId();
