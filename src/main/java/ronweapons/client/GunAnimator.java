@@ -50,7 +50,11 @@ public final class GunAnimator {
         }
     }
 
-    public void draw() { play("draw", false, 0.05f); }
+    /** On equip: the draw clip, or straight to idle for guns without one (also cancels a reload of the previous gun). */
+    public void draw() {
+        if (has("draw")) play("draw", false, 0.05f);
+        else play("idle", true, 0.1f);
+    }
     public void fire(boolean last) { play(last && has("fire_last") ? "fire_last" : "fire", false, 0.05f); }
     public void reload(boolean emptyMag) { play(emptyMag && has("reload_empty") ? "reload_empty" : "reload_tac", false, 0.15f); }
     public void action(String a) { play(a, false, 0.15f); }

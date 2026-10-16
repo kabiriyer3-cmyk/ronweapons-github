@@ -7,7 +7,13 @@
   "subtitles.ronweapons.m4a1.fire": "Выстрел M4A1",
   "subtitles.ronweapons.m4a1.reload": "Перезарядка M4A1",
   "subtitles.ronweapons.dryfire": "Щелчок пустого оружия",
-  "ronweapons.mode.auto": "M4A1: АВТО",
-  "ronweapons.mode.semi": "M4A1: ОДИНОЧНЫЙ",
-  "ronweapons.missing_pack": "[RoN Weapons] Не найден приватный ресурспак: включи RoN-Weapons-Private в «Пакетах ресурсов», чтобы появились модели и анимации из Ready or Not."
+  "ronweapons.mode.auto": "%s: АВТО",
+  "ronweapons.mode.semi": "%s: ОДИНОЧНЫЙ",
+  "ronweapons.missing_pack": "[RoN Weapons] Не найден приватный ресурспак: включи RoN-Weapons-Private в «Пакетах ресурсов», чтобы появились модели и анимации из Ready or Not.",
+  "item.ronweapons.g19": "Glock 19",
+  "item.ronweapons.python": "Colt Python .357",
+  "subtitles.ronweapons.g19.fire": "Выстрел Glock",
+  "subtitles.ronweapons.python.fire": "Выстрел револьвера",
+  "subtitles.ronweapons.g19.reload": "Перезарядка Glock",
+  "subtitles.ronweapons.python.reload": "Перезарядка револьвера"
 }

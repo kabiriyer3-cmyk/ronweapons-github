@@ -1,6 +1,7 @@
 package ronweapons;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,38 +37,46 @@ import ronweapons.net.FirePayload;
 
 public final class RonWeapons implements ModInitializer {
     public static final String MODID = "ronweapons";
-
-    public static final int MAG_SIZE = 30;
     public static final double RANGE = 160.0;
-    public static final float DAMAGE = 7.0f;          // 5.56: 3.5 hearts, x2 on headshots
-    public static final long MIN_SHOT_INTERVAL_NS = 60_000_000L; // server-side cap (~1000 rpm)
-    // sounds: the shooter hears 1P sounds client-side right away; everyone else gets these from the server
-    public static final int RELOAD_TAC_TICKS = 58;     // ~ length of fp_m4a1_add_tac_reload (3.1 s), refilled a bit before the end
-    public static final int RELOAD_EMPTY_TICKS = 42;   // ~ fp_m4a1_spd_reload_empty (2.3 s)
 
     public static Identifier id(String path) { return Identifier.of(MODID, path); }
 
-    public static final Item M4A1 = Registry.register(Registries.ITEM, id("m4a1"),
-            new GunItem(new Item.Settings().maxCount(1).maxDamage(MAG_SIZE)));
+    /** Sounds every weapon has. The shooter hears 1P versions client-side right away; others get these from the server. */
+    public record Sounds(SoundEvent fire, SoundEvent reload, SoundEvent dry) {}
 
-    public static final SoundEvent SND_FIRE = sound("m4a1.fire");
-    public static final SoundEvent SND_RELOAD = sound("m4a1.reload");
-    public static final SoundEvent SND_DRY = sound("dryfire");
+    public static final Map<String, GunItem> ITEMS = new LinkedHashMap<>();
+    public static final Map<String, Sounds> SOUNDS = new HashMap<>();
     public static final SoundEvent SND_SELECT = sound("fireselect");
+
+    static {
+        for (WeaponDef d : WeaponDef.ALL) {
+            ITEMS.put(d.id(), Registry.register(Registries.ITEM, id(d.id()),
+                    new GunItem(d, new Item.Settings().maxCount(1).maxDamage(d.magSize()))));
+            SOUNDS.put(d.id(), new Sounds(sound(d.id() + ".fire"), sound(d.id() + ".reload"), sound(d.id() + ".dryfire")));
+        }
+    }
+
+    public static final Item M4A1 = ITEMS.get("m4a1");
 
     private static SoundEvent sound(String path) {
         return Registry.register(Registries.SOUND_EVENT, id(path), SoundEvent.of(id(path)));
     }
 
-    private static final Map<UUID, Integer> reloadEnds = new HashMap<>();
+    /** pending reloads: refill the gun in this hotbar slot at this server tick (switching away cancels it) */
+    private record Reload(int endTick, int slot) {}
+    private static final Map<UUID, Reload> reloadEnds = new HashMap<>();
     private static final Map<UUID, Long> lastShot = new HashMap<>();
     private static int serverTicks;
 
     public static int ammo(ItemStack stack) { return stack.getMaxDamage() - stack.getDamage(); }
 
+    public static WeaponDef def(ItemStack stack) {
+        return stack.getItem() instanceof GunItem g ? g.def : null;
+    }
+
     @Override
     public void onInitialize() {
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(M4A1));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> ITEMS.values().forEach(item -> entries.add(item)));
 
         PayloadTypeRegistry.playC2S().register(FirePayload.ID, FirePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ActionPayload.ID, ActionPayload.CODEC);
@@ -77,9 +86,10 @@ public final class RonWeapons implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             serverTicks++;
             reloadEnds.entrySet().removeIf(e -> {
-                if (serverTicks < e.getValue()) return false;
                 ServerPlayerEntity p = server.getPlayerManager().getPlayer(e.getKey());
-                if (p != null && p.getMainHandStack().getItem() instanceof GunItem) p.getMainHandStack().setDamage(0);
+                if (p == null || p.getInventory().selectedSlot != e.getValue().slot()) return true;
+                if (serverTicks < e.getValue().endTick()) return false;
+                if (p.getMainHandStack().getItem() instanceof GunItem) p.getMainHandStack().setDamage(0);
                 return true;
             });
         });
@@ -87,31 +97,35 @@ public final class RonWeapons implements ModInitializer {
 
     private static void action(ServerPlayerEntity player, byte action) {
         ItemStack stack = player.getMainHandStack();
-        if (!(stack.getItem() instanceof GunItem)) return;
+        WeaponDef d = def(stack);
+        if (d == null) return;
         if (action == ActionPayload.RELOAD_TAC || action == ActionPayload.RELOAD_EMPTY) {
-            if (reloadEnds.containsKey(player.getUuid()) || ammo(stack) >= MAG_SIZE) return;
-            int ticks = ammo(stack) > 0 ? RELOAD_TAC_TICKS : RELOAD_EMPTY_TICKS;
-            reloadEnds.put(player.getUuid(), serverTicks + ticks);
-            player.getWorld().playSound(player, player.getX(), player.getY(), player.getZ(), SND_RELOAD, SoundCategory.PLAYERS, 0.8f, 1.0f);
+            if (reloadEnds.containsKey(player.getUuid()) || ammo(stack) >= d.magSize()) return;
+            int ticks = ammo(stack) > 0 ? d.reloadTacTicks() : d.reloadEmptyTicks();
+            reloadEnds.put(player.getUuid(), new Reload(serverTicks + ticks, player.getInventory().selectedSlot));
+            player.getWorld().playSound(player, player.getX(), player.getY(), player.getZ(), SOUNDS.get(d.id()).reload(),
+                    SoundCategory.PLAYERS, 0.8f, 1.0f);
         }
     }
 
     private static void fire(ServerPlayerEntity player) {
         ItemStack stack = player.getMainHandStack();
-        if (!(stack.getItem() instanceof GunItem) || player.isSpectator()) return;
+        WeaponDef d = def(stack);
+        if (d == null || player.isSpectator()) return;
         if (reloadEnds.containsKey(player.getUuid())) return;
         long now = System.nanoTime();
         Long last = lastShot.get(player.getUuid());
-        if (last != null && now - last < MIN_SHOT_INTERVAL_NS) return;
+        if (last != null && now - last < d.serverIntervalNs()) return;
         ServerWorld world = player.getServerWorld();
+        Sounds snd = SOUNDS.get(d.id());
         if (ammo(stack) <= 0) {
-            world.playSound(player, player.getX(), player.getY(), player.getZ(), SND_DRY, SoundCategory.PLAYERS, 0.6f, 1.0f);
+            world.playSound(player, player.getX(), player.getY(), player.getZ(), snd.dry(), SoundCategory.PLAYERS, 0.6f, 1.0f);
             return;
         }
         lastShot.put(player.getUuid(), now);
         // rounds are spent in creative too: otherwise the client counter resyncs back to a full mag
-        stack.setDamage(Math.min(MAG_SIZE, stack.getDamage() + 1));
-        world.playSound(player, player.getX(), player.getY(), player.getZ(), SND_FIRE, SoundCategory.PLAYERS, 2.0f,
+        stack.setDamage(Math.min(d.magSize(), stack.getDamage() + 1));
+        world.playSound(player, player.getX(), player.getY(), player.getZ(), snd.fire(), SoundCategory.PLAYERS, 2.0f,
                 0.95f + world.random.nextFloat() * 0.1f);
 
         Vec3d start = player.getEyePos();
@@ -126,7 +140,7 @@ public final class RonWeapons implements ModInitializer {
 
         if (hit != null) {
             Entity target = hit.getEntity();
-            float dmg = DAMAGE;
+            float dmg = d.damage();
             if (target instanceof LivingEntity living && hit.getPos().y > living.getEyeY() - 0.25) dmg *= 2.0f;
             target.timeUntilRegen = 0;
             target.damage(player.getDamageSources().playerAttack(player), dmg);

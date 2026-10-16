@@ -21,24 +21,30 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import ronweapons.GunItem;
 import ronweapons.RonWeapons;
+import ronweapons.WeaponDef;
 import ronweapons.net.ActionPayload;
 import ronweapons.net.FirePayload;
 
 public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
-    private static final long AUTO_INTERVAL_NS = 75_000_000L; // ~800 rpm
 
     private static KeyBinding reloadKey, selectKey, magKey;
-    private static boolean auto = true, wasAttack, wasHolding;
+    private static boolean autoMode = true, wasAttack, wasHolding;
+    private static String heldId;
     private static int heldSlot = -1, localAmmo = -1;
     private static long nextShotNs, lastShotNs;
 
-    public static final Identifier FIRE_1P = RonWeapons.id("m4a1.fire_1p");
 
     /** Non-positional sound for the local shooter (stereo 1P sounds from the private pack). */
     public static void playLocal(Identifier sound, float volume, float pitch) {
         MinecraftClient.getInstance().getSoundManager().play(new PositionedSoundInstance(sound, SoundCategory.PLAYERS,
                 volume, pitch, SoundInstance.createRandom(), false, 0, SoundInstance.AttenuationType.NONE, 0, 0, 0, true));
+    }
+
+    /** The weapon in the main hand, or null. */
+    public static WeaponDef heldDef() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        return mc.player == null ? null : RonWeapons.def(mc.player.getMainHandStack());
     }
 
     public static boolean holdingGun() {
@@ -71,10 +77,13 @@ public final class RonWeaponsClient implements ClientModInitializer {
     private static void tick(MinecraftClient mc) {
         ClientPlayerEntity player = mc.player;
         if (player == null) return;
-        boolean holding = holdingGun();
+        WeaponDef def = heldDef();
+        boolean holding = def != null;
         int slot = player.getInventory().selectedSlot;
         ItemStack stack = player.getMainHandStack();
-        if (holding && (!wasHolding || slot != heldSlot)) {
+        if (holding && (!wasHolding || slot != heldSlot || !def.id().equals(heldId))) {
+            heldId = def.id();
+            ANIM.setRig(GunRig.get(mc.getResourceManager(), def.id()));
             ANIM.draw();
             localAmmo = RonWeapons.ammo(stack);
         }
@@ -88,7 +97,9 @@ public final class RonWeaponsClient implements ClientModInitializer {
             return;
         }
 
-        if (GunRig.get(mc.getResourceManager()) == null) ANIM.update(0.05f); // no private pack: keep logic timing alive
+        if (GunRig.get(mc.getResourceManager(), def.id()) == null) ANIM.update(0.05f); // no private pack: keep logic timing alive
+        RonWeapons.Sounds snd = RonWeapons.SOUNDS.get(def.id());
+        boolean auto = def.auto() && autoMode;
         long now = System.nanoTime();
         int serverAmmo = RonWeapons.ammo(stack);
         if (localAmmo < 0 || serverAmmo < localAmmo
@@ -99,44 +110,45 @@ public final class RonWeaponsClient implements ClientModInitializer {
         ANIM.setLocomotion(player.isOnGround() && player.getVelocity().horizontalLengthSquared() > 0.0025, player.isSprinting());
 
         while (reloadKey.wasPressed()) {
-            if (localAmmo < RonWeapons.MAG_SIZE && ANIM.canReload()) {
+            if (localAmmo < def.magSize() && ANIM.canReload()) {
                 boolean emptyMag = localAmmo <= 0;
                 ANIM.reload(emptyMag);
-                if (!ANIM.hasCues(ANIM.current())) player.playSound(RonWeapons.SND_RELOAD, 0.8f, 1.0f);
+                if (!ANIM.hasCues(ANIM.current())) player.playSound(snd.reload(), 0.8f, 1.0f);
                 ClientPlayNetworking.send(new ActionPayload(emptyMag ? ActionPayload.RELOAD_EMPTY : ActionPayload.RELOAD_TAC));
             }
         }
         while (selectKey.wasPressed()) {
-            if (ANIM.canAct()) {
-                auto = !auto;
-                ANIM.action(auto ? "select_auto" : "select_semi");
+            if (def.auto() && ANIM.canAct()) {
+                autoMode = !autoMode;
+                ANIM.action(autoMode ? "select_auto" : "select_semi");
                 player.playSound(RonWeapons.SND_SELECT, 0.5f, 1.0f);
-                player.sendMessage(Text.translatable(auto ? "ronweapons.mode.auto" : "ronweapons.mode.semi"), true);
+                player.sendMessage(Text.translatable(autoMode ? "ronweapons.mode.auto" : "ronweapons.mode.semi", def.name()), true);
             }
         }
         while (magKey.wasPressed()) {
             if (ANIM.canAct()) {
                 ANIM.action("magcheck");
-                player.sendMessage(Text.literal(localAmmo + " / " + RonWeapons.MAG_SIZE), true);
+                player.sendMessage(Text.literal(localAmmo + " / " + def.magSize()), true);
             }
         }
 
         boolean attack = mc.currentScreen == null && mc.options.attackKey.isPressed();
         if (attack && ANIM.canFire()) {
-            boolean trigger = auto ? now >= nextShotNs : !wasAttack;
+            boolean trigger = auto ? now >= nextShotNs : (!wasAttack && now >= nextShotNs);
             if (trigger) {
                 if (localAmmo > 0) {
                     ClientPlayNetworking.send(new FirePayload());
                     localAmmo--;
                     lastShotNs = now;
-                    nextShotNs = now + AUTO_INTERVAL_NS;
+                    nextShotNs = now + def.clientIntervalNs();
                     ANIM.fire(localAmmo == 0);
-                    playLocal(FIRE_1P, 1.0f, 0.97f + player.getRandom().nextFloat() * 0.06f);
-                    float kick = aiming() ? 0.45f : 0.7f;
+                    FirstPersonRenderer.kick(def.viewKick());
+                    playLocal(RonWeapons.id(def.id() + ".fire_1p"), 1.0f, 0.97f + player.getRandom().nextFloat() * 0.06f);
+                    float kick = def.recoilPitch() * (aiming() ? 0.65f : 1f);
                     player.setPitch(player.getPitch() - kick);
                     player.setYaw(player.getYaw() + (player.getRandom().nextFloat() - 0.5f) * 0.4f);
                 } else if (!wasAttack) {
-                    player.playSound(RonWeapons.SND_DRY, 0.6f, 1.0f);
+                    player.playSound(snd.dry(), 0.6f, 1.0f);
                 }
             }
         }

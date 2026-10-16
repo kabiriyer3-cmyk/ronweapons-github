@@ -7,7 +7,13 @@
   "subtitles.ronweapons.m4a1.fire": "M4A1 fires",
   "subtitles.ronweapons.m4a1.reload": "M4A1 reloads",
   "subtitles.ronweapons.dryfire": "Dry fire",
-  "ronweapons.mode.auto": "M4A1: AUTO",
-  "ronweapons.mode.semi": "M4A1: SEMI",
-  "ronweapons.missing_pack": "[RoN Weapons] Private resource pack not found: enable RoN-Weapons-Private in Resource Packs to get Ready or Not models and animations."
+  "ronweapons.mode.auto": "%s: AUTO",
+  "ronweapons.mode.semi": "%s: SEMI",
+  "ronweapons.missing_pack": "[RoN Weapons] Private resource pack not found: enable RoN-Weapons-Private in Resource Packs to get Ready or Not models and animations.",
+  "item.ronweapons.g19": "Glock 19",
+  "item.ronweapons.python": "Colt Python .357",
+  "subtitles.ronweapons.g19.fire": "Glock fires",
+  "subtitles.ronweapons.python.fire": "Revolver fires",
+  "subtitles.ronweapons.g19.reload": "Glock reloads",
+  "subtitles.ronweapons.python.reload": "Revolver reloads"
 }

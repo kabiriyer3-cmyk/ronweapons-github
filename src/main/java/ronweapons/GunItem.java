@@ -8,7 +8,12 @@ import net.minecraft.world.World;
 
 /** Durability doubles as the magazine: damage = rounds fired since the last reload. */
 public class GunItem extends Item {
-    public GunItem(Settings settings) { super(settings); }
+    public final WeaponDef def;
+
+    public GunItem(WeaponDef def, Settings settings) {
+        super(settings);
+        this.def = def;
+    }
 
     @Override
     public boolean canMine(BlockState state, World world, BlockPos pos, PlayerEntity miner) { return false; }

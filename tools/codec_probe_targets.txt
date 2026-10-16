@@ -1,0 +1,2 @@
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/G19/weapon/fp_g19_add_fire_single_weapon
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/G19/weapon/fp_g19_add_tac_reload

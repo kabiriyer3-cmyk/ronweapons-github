@@ -21,6 +21,6 @@ public abstract class ItemRendererMixin {
     private void ronweapons$model3d(ItemStack stack, ModelTransformationMode mode, boolean leftHanded, MatrixStack matrices,
                                     VertexConsumerProvider consumers, int light, int overlay, BakedModel model, CallbackInfo ci) {
         if (stack.isEmpty() || !(stack.getItem() instanceof GunItem)) return;
-        if (ItemModelRenderer.render(mode, matrices, consumers, light, overlay)) ci.cancel();
+        if (ItemModelRenderer.render(stack, mode, matrices, consumers, light, overlay)) ci.cancel();
     }
 }

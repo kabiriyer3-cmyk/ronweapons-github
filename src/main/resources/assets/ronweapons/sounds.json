@@ -1,20 +1,141 @@
 {
   "m4a1.fire": {
-    "subtitle": "subtitles.ronweapons.m4a1.fire",
-    "sounds": [ { "name": "minecraft:entity.firework_rocket.blast", "type": "event", "pitch": 1.35, "volume": 1.0 } ]
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.35,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.m4a1.fire"
   },
   "m4a1.fire_1p": {
-    "sounds": [ { "name": "minecraft:entity.firework_rocket.blast", "type": "event", "pitch": 1.35, "volume": 1.0 } ]
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.35,
+        "volume": 1.0
+      }
+    ]
   },
   "m4a1.reload": {
-    "subtitle": "subtitles.ronweapons.m4a1.reload",
-    "sounds": [ { "name": "minecraft:item.crossbow.loading_middle", "type": "event", "pitch": 0.8 } ]
+    "sounds": [
+      {
+        "name": "minecraft:item.crossbow.loading_middle",
+        "type": "event",
+        "pitch": 0.8,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.m4a1.reload"
   },
-  "dryfire": {
-    "subtitle": "subtitles.ronweapons.dryfire",
-    "sounds": [ { "name": "minecraft:block.dispenser.fail", "type": "event", "pitch": 1.6, "volume": 0.6 } ]
+  "m4a1.dryfire": {
+    "sounds": [
+      {
+        "name": "minecraft:block.dispenser.fail",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.dryfire"
+  },
+  "g19.fire": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.69,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.g19.fire"
+  },
+  "g19.fire_1p": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.69,
+        "volume": 1.0
+      }
+    ]
+  },
+  "g19.reload": {
+    "sounds": [
+      {
+        "name": "minecraft:item.crossbow.loading_middle",
+        "type": "event",
+        "pitch": 0.8,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.g19.reload"
+  },
+  "g19.dryfire": {
+    "sounds": [
+      {
+        "name": "minecraft:block.dispenser.fail",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.dryfire"
+  },
+  "python.fire": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.08,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.python.fire"
+  },
+  "python.fire_1p": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.firework_rocket.blast",
+        "type": "event",
+        "pitch": 1.08,
+        "volume": 1.0
+      }
+    ]
+  },
+  "python.reload": {
+    "sounds": [
+      {
+        "name": "minecraft:item.crossbow.loading_middle",
+        "type": "event",
+        "pitch": 0.8,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.python.reload"
+  },
+  "python.dryfire": {
+    "sounds": [
+      {
+        "name": "minecraft:block.dispenser.fail",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.dryfire"
   },
   "fireselect": {
-    "sounds": [ { "name": "minecraft:block.lever.click", "type": "event", "pitch": 1.8, "volume": 0.5 } ]
+    "sounds": [
+      {
+        "name": "minecraft:block.lever.click",
+        "type": "event",
+        "pitch": 1.8,
+        "volume": 0.5
+      }
+    ]
   }
 }

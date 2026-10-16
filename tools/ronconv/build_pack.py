@@ -1,6 +1,6 @@
-"""Build the PRIVATE Minecraft resource pack from your own Ready or Not export.
+"""Build the PRIVATE Minecraft resource pack from your own Ready or Not export (all weapons).
 
-Input : private/export (made by tools/ronexport from your RoN install)
+Input : private/export (tools/ronexport) and private/sound_pack (sound_pack.py, optional)
 Output: private/RoN-Weapons-Private.zip (+ unpacked folder). Never commit or share it: it contains RoN assets.
 
 usage: py build_pack.py [export_dir] [out_dir] [--install <.minecraft dir>]
@@ -23,32 +23,82 @@ EXPORT = os.path.join(ROOT, "private", "export")
 OUT = os.path.join(ROOT, "private")
 PACK_NAME = "RoN-Weapons-Private"
 NS = "ronweapons"
-BASE = f"assets/{NS}/ron/m4a1"
-TEX_BASE = f"assets/{NS}/textures/ron/m4a1"
 MAX_TEX = 2048
 
-ARMS_MESH = "ReadyOrNot/Content/ReadyOrNot/Character/SWAT/SWAT_Officer/SK_Char_SWAT_Heavy_FP_Arms.psk"
-GUN_MESH = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SK_WP_Rifle_M4.psk"
-# RoN attaches the magazine as its own static mesh to mag_01_socket / mag_02_socket
-MAG_MESH = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SM_Rif_M4A1_new_mag_static.psk"
-# iron-sight line (gun space, cm): front post tip z = 9.42 at y = -34.2, rear aperture at y ~ +3; eye 8 cm behind it
-ADS_EYE = [0.0, 11.0, 9.42]
-FP = "ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1"
-REV = "ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle"
-# action -> (arms clip, weapon clip); every clip is absolute (CUE4Parse bakes RoN additives onto the ref pose)
-ACTIONS = {
-    "draw":         (f"{FP}/arms/fp_m4a1_add_draw", None),
-    "idle":         (f"{FP}/arms/fp_gen_idle_01", f"{FP}/weapon/fp_m4a1_idle_pose_weapon"),
-    "idle_empty":   (None, f"{FP}/weapon/fp_m4a1_idle_pose_empty"),
-    "walk":         (f"{FP}/arms/fp_m4a1_add_walk_loop", None),
-    "run":          (f"{REV}/arms/fp_m4a1_add_run_variance", None),
-    "fire":         (f"{REV}/arms/fp_m4a1_fire_single_aim_01", f"{REV}/weapon/fp_m4a1_add_fire_single_weapon"),
-    "fire_last":    (f"{REV}/arms/fp_m4a1_fire_single_aim_01", f"{REV}/weapon/fp_m4a1_add_fire_single_last_weapon"),
-    "reload_tac":   (f"{FP}/arms/fp_m4a1_add_tac_reload", f"{FP}/weapon/fp_m4a1_add_tac_reload"),
-    "reload_empty": (f"{FP}/arms/fp_m4a1_spd_reload_empty", f"{FP}/weapon/fp_m4a1_spd_reload_empty"),
-    "magcheck":     (f"{FP}/arms/fp_m4a1_add_mag_check", f"{FP}/weapon/fp_m4a1_add_mag_check"),
-    "select_auto":  (f"{FP}/arms/fp_m4a1_add_fire_select_auto", None),
-    "select_semi":  (f"{FP}/arms/fp_m4a1_add_fire_select_semi", None),
+ARMS_MESH = "ReadyOrNot/Content/ReadyOrNot/Character/SWAT/SWAT_Officer/SK_Char_SWAT_Heavy_FP_Arms"
+A = "ReadyOrNot/Content/ReadyOrNot/Animations"
+M4FP, M4REV = f"{A}/FP/M4A1", f"{A}/Revised/FirstPerson/Weapons/M4_Rifle"
+G19FP, PYFP, PYREV = f"{A}/FP/G19", f"{A}/FP/PYTHON", f"{A}/Revised/FirstPerson/Weapons/Python"
+
+# Clip spec: path, or (path, "first"|"last") to take a single pose from a clip.
+# Every clip is absolute (CUE4Parse bakes RoN additives onto the ref pose).
+# Clips RoN stores with ACL compression cannot be exported yet; those slots use a pose from another clip or idle.
+WEAPONS = {
+    "m4a1": {
+        "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SK_WP_Rifle_M4",
+        # iron-sight line (gun space, cm): front post tip z = 9.42 at y = -34.2, rear aperture y ~ +3; eye 8 cm behind
+        "ads_eye": [0.0, 11.0, 9.42],
+        "attachments": [
+            {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SM_Rif_M4A1_new_mag_static",
+             "file": "mag", "sockets": ["mag_01_socket", "mag_02_socket"]},
+        ],
+        "actions": {
+            "draw":         (f"{M4FP}/arms/fp_m4a1_add_draw", None),
+            "idle":         (f"{M4FP}/arms/fp_gen_idle_01", f"{M4FP}/weapon/fp_m4a1_idle_pose_weapon"),
+            "idle_empty":   (None, f"{M4FP}/weapon/fp_m4a1_idle_pose_empty"),
+            "walk":         (f"{M4FP}/arms/fp_m4a1_add_walk_loop", None),
+            "run":          (f"{M4REV}/arms/fp_m4a1_add_run_variance", None),
+            "fire":         (f"{M4REV}/arms/fp_m4a1_fire_single_aim_01", f"{M4REV}/weapon/fp_m4a1_add_fire_single_weapon"),
+            "fire_last":    (f"{M4REV}/arms/fp_m4a1_fire_single_aim_01", f"{M4REV}/weapon/fp_m4a1_add_fire_single_last_weapon"),
+            "reload_tac":   (f"{M4FP}/arms/fp_m4a1_add_tac_reload", f"{M4FP}/weapon/fp_m4a1_add_tac_reload"),
+            "reload_empty": (f"{M4FP}/arms/fp_m4a1_spd_reload_empty", f"{M4FP}/weapon/fp_m4a1_spd_reload_empty"),
+            "magcheck":     (f"{M4FP}/arms/fp_m4a1_add_mag_check", f"{M4FP}/weapon/fp_m4a1_add_mag_check"),
+            "select_auto":  (f"{M4FP}/arms/fp_m4a1_add_fire_select_auto", None),
+            "select_semi":  (f"{M4FP}/arms/fp_m4a1_add_fire_select_semi", None),
+        },
+    },
+    "g19": {
+        "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/G19/Meshes/SK_Pistol_G19",
+        # front sight top z 3.62 (y -9), rear sight top z 3.65 (y 7); null y = keep the hip-fire distance to the eye
+        "ads_eye": [0.0, None, 3.64],
+        "attachments": [
+            {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/G19/Meshes/SM_G19_Mag_Static",
+             "file": "mag", "sockets": ["tag_mag_01_socket", "tag_mag_02_socket"]},
+            {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/G19/Meshes/g19_fmj_bullets_static",
+             "file": "rounds", "sockets": ["tag_mag_01_bullets_socket", "tag_mag_02_bullets_socket"]},
+        ],
+        "actions": {
+            "draw":         (f"{G19FP}/arms/fp_g19_add_draw", None),
+            # fp_g19_idle_high_ready points the gun at the sky and the real idle is ACL-only: frame 0 of the tac reload is
+            # the same pose every G19 clip starts and ends in (checked with diag_pistols.py)
+            "idle":         ((f"{G19FP}/arms/fp_g19_add_tac_reload", "first"), f"{G19FP}/weapon/fp_g19_idle_pose"),
+            "idle_empty":   (None, (f"{G19FP}/weapon/fp_g19_add_fire_empty_60fps_weapon", "last")),
+            "run":          (f"{A}/FP/SHARED/pistol_sprint/fp_g19_add_loco_sprint_fwd", None),
+            # no exportable arms fire clip for the G19: idle arms + procedural kick, the slide still cycles
+            "fire":         (None, f"{G19FP}/weapon/fp_g19_add_fire_weapon"),
+            "fire_last":    (None, f"{G19FP}/weapon/fp_g19_add_fire_empty_60fps_weapon"),
+            "reload_tac":   (f"{G19FP}/arms/fp_g19_add_tac_reload", f"{G19FP}/weapon/fp_g19_add_tac_reload"),
+            "reload_empty": (f"{G19FP}/arms/fp_g19_add_spd_reload_empty", f"{G19FP}/weapon/fp_g19_add_spd_reload_empty"),
+            "magcheck":     (f"{G19FP}/arms/fp_g19_add_mag_check", f"{G19FP}/weapon/fp_g19_add_mag_check"),
+        },
+    },
+    "python": {
+        "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Python/Meshes/SK_Pistol_Python",
+        # front ramp top z 5.66 (y -17), rear notch z 5.61 (y 0)
+        "ads_eye": [0.0, None, 5.63],
+        "attachments": [
+            {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Python/Meshes/SM_Python_FMJ_Bullets_Static",
+             "file": "rounds", "sockets": ["mag_01_bullets_socket"]},
+        ],
+        "actions": {
+            # weapon idle is ACL-only: frame 0 of the cylinder check has the cylinder shut and the speedloader parked
+            "idle":         (f"{PYREV}/arms/fp_python_idle_pose", (f"{PYFP}/ron_python_fix/fp_python_add_mag_check_weapon", "first")),
+            "fire":         (f"{PYREV}/arms/fp_m92fs_add_fire_single_python", None),
+            "reload_tac":   (f"{PYFP}/base_male/fp_python_add_spd_reload", f"{PYFP}/ron_python_fix/fp_python_add_spd_reload_weapon"),
+            "reload_empty": (f"{PYFP}/base_male/fp_python_add_spd_reload", f"{PYFP}/ron_python_fix/fp_python_add_spd_reload_weapon"),
+            "magcheck":     (f"{PYFP}/base_male/fp_python_add_mag_check", f"{PYFP}/ron_python_fix/fp_python_add_mag_check_weapon"),
+        },
+    },
 }
 
 
@@ -61,9 +111,8 @@ def exported(rel, ext):
     p = os.path.join(EXPORT, *rel.split("/")) + ext
     if os.path.exists(p):
         return p
-    alt = p + "x" if ext == ".psk" else None
-    if alt and os.path.exists(alt):
-        return alt
+    if ext == ".psk" and os.path.exists(p + "x"):
+        return p + "x"
     return None
 
 
@@ -82,27 +131,37 @@ def material_texture(mat):
     for key, v in tex.items():
         name = v.get("ObjectName", "").split("'")[1] if "'" in v.get("ObjectName", "") else key
         names.append((key, name))
-    for pref in (lambda k, n: k == "B", lambda k, n: "basecolor" in n.lower(), lambda k, n: n.lower().endswith("_b")):
+    for pref in (lambda k, n: k == "B", lambda k, n: "basecolor" in n.lower(), lambda k, n: n.lower().endswith("_b"),
+                 lambda k, n: "diffuse" in k.lower() or "albedo" in k.lower()):
         for k, n in names:
             if pref(k, n) and find_one(n + ".png"):
                 return find_one(n + ".png")
     return None
 
 
-def write_texture(src, pack_dir, written):
-    name = os.path.splitext(os.path.basename(src))[0].lower()
-    name = "".join(c if c.isalnum() or c in "_-." else "_" for c in name)
-    if name not in written:
-        im = Image.open(src).convert("RGBA")
-        if max(im.size) > MAX_TEX:
-            s = MAX_TEX / max(im.size)
-            im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
-        im.putalpha(255)  # base colour alpha in RoN is not opacity
-        dst = os.path.join(pack_dir, *TEX_BASE.split("/"), name + ".png")
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        im.save(dst, optimize=True)
-        written.add(name)
-    return f"{NS}:textures/ron/m4a1/{name}.png"
+class Textures:
+    def __init__(self, pack_dir):
+        self.pack_dir, self.written = pack_dir, {}
+
+    def for_material(self, mat, folder):
+        src = material_texture(mat)
+        if not src:
+            print(f"  ! no base colour for material {mat}, using a grey placeholder")
+            src = os.path.join(OUT, "_grey.png")
+            Image.new("RGBA", (4, 4), (90, 90, 90, 255)).save(src)
+        name = "".join(c if c.isalnum() or c in "_-." else "_" for c in os.path.splitext(os.path.basename(src))[0].lower())
+        key = f"{folder}/{name}"
+        if key not in self.written:
+            im = Image.open(src).convert("RGBA")
+            if max(im.size) > MAX_TEX:
+                s = MAX_TEX / max(im.size)
+                im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
+            im.putalpha(255)  # base colour alpha in RoN is not opacity
+            dst = os.path.join(self.pack_dir, "assets", NS, "textures", "ron", folder, name + ".png")
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            im.save(dst, optimize=True)
+            self.written[key] = True
+        return f"{NS}:textures/ron/{folder}/{name}.png"
 
 
 def bind_data(mesh):
@@ -130,7 +189,7 @@ def write_mesh(mesh, path, tex_for_material, rigid):
         per_point.setdefault(p, []).append((w, b))
     out = bytearray(b"RONM" + struct.pack(">i", 1))
     if not mesh.bones:
-        # static mesh (e.g. the magazine): one identity root bone so the renderer always has bone 0
+        # static mesh (magazine, rounds): one identity root bone so the renderer always has bone 0
         out += struct.pack(">i", 1) + utf("root") + struct.pack(">i", -1)
         out += struct.pack(">3f", 0, 0, 0) + struct.pack(">4f", 0, 0, 0, 1)
         out += struct.pack(">16f", *np.eye(4).T.flatten())
@@ -172,17 +231,24 @@ def write_mesh(mesh, path, tex_for_material, rigid):
     return nw, len(mesh.faces)
 
 
-def write_anim(anim, mesh, path):
+def write_anim(anim, mesh, path, pick=None):
     names = {b.name.lower() for b in mesh.bones}
     keep = [i for i, n in enumerate(anim.bones) if n.lower() in names]
+    frames = range(anim.frames)
+    if pick == "first":
+        frames = [0, 0]
+    elif pick == "last":
+        frames = [anim.frames - 1, anim.frames - 1]
+    frames = list(frames)
     out = bytearray(b"RONA" + struct.pack(">i", 1))
-    out += struct.pack(">fii", anim.fps, anim.frames, len(keep))
+    fps = anim.fps if pick is None else 30.0
+    out += struct.pack(">fii", fps, len(frames), len(keep))
     for i in keep:
         out += utf(anim.bones[i])
-    data = np.zeros((anim.frames, len(keep), 7), dtype=">f4")
+    data = np.zeros((len(frames), len(keep), 7), dtype=">f4")
     for j, i in enumerate(keep):
-        data[:, j, 0:3] = anim.pos[:, i]
-        q = anim.quat[:, i].copy()
+        data[:, j, 0:3] = anim.pos[frames, i]
+        q = anim.quat[frames, i].copy()
         if i != 0:
             q[:, 0:3] *= -1  # conjugate non-root
         q /= np.linalg.norm(q, axis=1, keepdims=True)
@@ -190,7 +256,7 @@ def write_anim(anim, mesh, path):
     out += data.tobytes()
     with open(path, "wb") as fh:
         fh.write(out)
-    return len(keep), anim.frames / max(anim.fps, 1e-6)
+    return len(keep), len(frames) / max(fps, 1e-6)
 
 
 def main():
@@ -206,50 +272,55 @@ def main():
     pack_dir = os.path.join(OUT, PACK_NAME)
     if os.path.exists(pack_dir):
         shutil.rmtree(pack_dir)
-    os.makedirs(os.path.join(pack_dir, *BASE.split("/"), "anims"))
+    ron = os.path.join(pack_dir, "assets", NS, "ron")
+    os.makedirs(ron)
     json.dump({"pack": {"pack_format": 34, "description": "RoN Weapons: PRIVATE, made from your own Ready or Not install. Do not share."}},
               open(os.path.join(pack_dir, "pack.mcmeta"), "w"), indent=2)
-
-    written = set()
-
-    def tex_for(mat):
-        src = material_texture(mat)
-        if not src:
-            print(f"  ! no base colour for material {mat}, using a grey placeholder")
-            grey = os.path.join(OUT, "_grey.png")
-            Image.new("RGBA", (4, 4), (90, 90, 90, 255)).save(grey)
-            src = grey
-        return write_texture(src, pack_dir, written)
-
-    arms = read_psk(exported(ARMS_MESH[:-4], ".psk"))
-    gun = read_psk(exported(GUN_MESH[:-4], ".psk"))
-    print("arms mesh:", write_mesh(arms, os.path.join(pack_dir, *BASE.split("/"), "arms.ronmesh"), tex_for, rigid=False))
-    print("gun mesh :", write_mesh(gun, os.path.join(pack_dir, *BASE.split("/"), "gun.ronmesh"), tex_for, rigid=True))
-    mag_src = exported(MAG_MESH[:-4], ".psk")
-    if mag_src:
-        print("mag mesh :", write_mesh(read_psk(mag_src), os.path.join(pack_dir, *BASE.split("/"), "mag.ronmesh"), tex_for, rigid=True))
-    else:
-        print("  ! magazine mesh not exported, the rifle will have no magazine")
-    rig_meta = {"ads_eye": ADS_EYE}
-    # RoN sounds (tools/ronconv/sound_pack.py): ogg files + sounds.json + cue table
+    tex = Textures(pack_dir)
     snd = os.path.join(OUT, "sound_pack")
-    if os.path.isdir(snd):
+    all_cues = json.load(open(os.path.join(snd, "cues.json"))) if os.path.isdir(snd) else {}
+    if all_cues:
         shutil.copytree(os.path.join(snd, "assets"), os.path.join(pack_dir, "assets"), dirs_exist_ok=True)
-        rig_meta["cues"] = json.load(open(os.path.join(snd, "cues.json")))
-        print("sounds   :", len(os.listdir(os.path.join(snd, "assets", "ronweapons", "sounds", "ron", "m4a1"))), "ogg files")
+        n = sum(len(fs) for _, _, fs in os.walk(os.path.join(snd, "assets", NS, "sounds")))
+        print(f"sounds: {n} ogg files")
     else:
         print("  ! no private/sound_pack: run sound_pack.py for RoN sounds")
-    json.dump(rig_meta, open(os.path.join(pack_dir, *BASE.split("/"), "rig.json"), "w"))
-    for action, (a_rel, w_rel) in ACTIONS.items():
-        for kind, rel, mesh in (("arms", a_rel, arms), ("weapon", w_rel, gun)):
-            if not rel:
+
+    arms = read_psk(exported(ARMS_MESH, ".psk"))
+    print("arms (shared):", write_mesh(arms, os.path.join(ron, "arms.ronmesh"), lambda m: tex.for_material(m, "arms"), rigid=False))
+
+    for wid, w in WEAPONS.items():
+        src = exported(w["gun"], ".psk")
+        if not src:
+            print(f"== {wid}: gun mesh not exported, skipped")
+            continue
+        base = os.path.join(ron, wid)
+        os.makedirs(os.path.join(base, "anims"))
+        tf = lambda m, wid=wid: tex.for_material(m, wid)
+        gun = read_psk(src)
+        print(f"== {wid}: gun", write_mesh(gun, os.path.join(base, "gun.ronmesh"), tf, rigid=True))
+        meta = {"ads_eye": w["ads_eye"], "attachments": []}
+        for att in w.get("attachments", []):
+            p = exported(att["mesh"], ".psk")
+            if not p:
+                print(f"  ! {att['file']}: {att['mesh']} not exported")
                 continue
-            src = exported(rel, ".psa")
-            if not src:
-                print(f"  ! {action}/{kind}: {rel}.psa not exported, skipped")
-                continue
-            tracks, dur = write_anim(read_psa(src), mesh, os.path.join(pack_dir, *BASE.split("/"), "anims", f"{action}_{kind}.ronanim"))
-            print(f"  {action:13s} {kind:6s} {tracks:3d} tracks {dur:5.2f}s")
+            print(f"   {att['file']}:", write_mesh(read_psk(p), os.path.join(base, att["file"] + ".ronmesh"), tf, rigid=True))
+            meta["attachments"].append({"mesh": att["file"], "sockets": att["sockets"]})
+        if wid in all_cues:
+            meta["cues"] = all_cues[wid]
+        json.dump(meta, open(os.path.join(base, "rig.json"), "w"))
+        for action, (a_rel, w_rel) in w["actions"].items():
+            for kind, spec, mesh in (("arms", a_rel, arms), ("weapon", w_rel, gun)):
+                if not spec:
+                    continue
+                rel, pick = (spec, None) if isinstance(spec, str) else spec
+                psa = exported(rel, ".psa")
+                if not psa:
+                    print(f"  ! {action}/{kind}: {rel}.psa not exported, skipped")
+                    continue
+                tracks, dur = write_anim(read_psa(psa), mesh, os.path.join(base, "anims", f"{action}_{kind}.ronanim"), pick)
+                print(f"   {action:13s} {kind:6s} {tracks:3d} tracks {dur:5.2f}s" + (f" ({pick} frame)" if pick else ""))
 
     zpath = os.path.join(OUT, PACK_NAME + ".zip")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:

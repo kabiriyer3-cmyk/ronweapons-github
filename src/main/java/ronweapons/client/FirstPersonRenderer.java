@@ -7,15 +7,16 @@ import net.minecraft.text.Text;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import ronweapons.WeaponDef;
 
 /**
- * Draws RoN arms + gun (+ the separate magazine mesh) in Minecraft camera space (X right, Y up, -Z forward, blocks).
+ * Draws RoN arms + gun (+ magazines / rounds) in Minecraft camera space (X right, Y up, -Z forward, blocks).
  * view = C * 0.01 * Rbind(fp_camera) * inverse(G(fp_camera)), so the RoN camera bone's game-feel motion is kept.
- * Verified offline with tools/ronconv/diag.py: hands within ~5 cm of the gun, muzzle ~0.63 blocks ahead.
  *
- * ADS: one rigid correction D moves the whole rig (arms and gun together, so the hands stay on the rifle) from the
- * idle hip pose to a pose where the iron-sight line runs through the eye: Gads = C * 0.01 * T(-eye) in gun space.
+ * ADS: one rigid correction D moves the whole rig (arms and gun together, so the hands stay on the gun) from the
+ * idle hip pose to a pose where the sight line runs through the eye: Gads = C * 0.01 * T(-eye) in gun space.
  * D is computed once from the idle pose, so recoil / sway from the RoN clips still plays on top while aiming.
+ * Pistols keep their hip distance to the eye (rig.adsKeepDistance) and only get centred on the sights.
  */
 public final class FirstPersonRenderer {
     /** psk -> Minecraft camera axes: x = -x, y = z, z = y (column-major constructor). */
@@ -25,25 +26,32 @@ public final class FirstPersonRenderer {
     private static GunRig rigCache;
     private static float[] alp, alr, wlp, wlr, tap, tar, twp, twr;
     private static Matrix4f[] armsG, gunG, armsSkin, gunSkin;
-    private static final Matrix4f[] magSkin = {new Matrix4f()};
+    private static final Matrix4f[] oneSkin = {new Matrix4f()};
     private static final Vector3f adsT = new Vector3f();
     private static final Quaternionf adsQ = new Quaternionf();
     private static long lastNs;
-    private static float ads;
-    private static boolean warned;
+    private static float ads, kick, kickScale;
+    private static String warnedFor;
+
+    /** Procedural kick for weapons whose RoN fire clip is missing or mild (WeaponDef.viewKick). */
+    public static void kick(float scale) {
+        if (scale <= 0) return;
+        kick = Math.min(1.6f, kick + 1f);
+        kickScale = scale;
+    }
 
     public static boolean render(MatrixStack matrices, VertexConsumerProvider consumers, int light) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        GunRig rig = GunRig.get(mc.getResourceManager());
+        WeaponDef def = RonWeaponsClient.heldDef();
+        GunRig rig = def == null ? null : GunRig.get(mc.getResourceManager(), def.id());
         RonWeaponsClient.ANIM.setRig(rig);
         if (rig == null) {
-            if (!warned && mc.player != null) {
-                warned = true;
+            if (def != null && !def.id().equals(warnedFor) && mc.player != null) {
+                warnedFor = def.id();
                 mc.player.sendMessage(Text.translatable("ronweapons.missing_pack"), false);
             }
             return false;
         }
-        warned = false;
         if (rig != rigCache) allocate(rig);
 
         long now = System.nanoTime();
@@ -71,6 +79,13 @@ public final class FirstPersonRenderer {
             view.mulLocal(d);
             attach.mulLocal(d);
         }
+        if (kick > 0.001f) {
+            float k = kick * kickScale * (ads > 0.5f ? 0.6f : 1f);
+            Matrix4f d = new Matrix4f().translation(0, 0.004f * k, 0.035f * k).rotateX((float) Math.toRadians(7.0 * k));
+            view.mulLocal(d);
+            attach.mulLocal(d);
+            kick *= (float) Math.exp(-dt * 13.0);
+        }
 
         for (int b = 0; b < armsG.length; b++) armsSkin[b].set(view).mul(armsG[b]).mul(rig.arms.invBind[b]);
         for (int b = 0; b < gunG.length; b++) gunSkin[b].set(attach).mul(gunG[b]).mul(rig.gun.invBind[b]);
@@ -79,25 +94,23 @@ public final class FirstPersonRenderer {
         rig.arms.emit(entry, consumers, light);
         rig.gun.skin(gunSkin);
         rig.gun.emit(entry, consumers, light);
-        renderMags(rig, attach, entry, consumers, light);
+        renderAttachments(rig, attach, entry, consumers, light);
         return true;
     }
 
-    /** The magazine is its own static mesh in RoN. Both sockets are drawn unless mag 2 sits in the same spot. */
-    private static void renderMags(GunRig rig, Matrix4f attach, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
-        if (rig.mag == null) return;
-        if (rig.mag1Socket >= 0) drawMag(rig, attach, rig.mag1Socket, entry, consumers, light);
-        if (rig.mag2Socket >= 0) {
-            Vector3f p1 = gunG[rig.mag1Socket >= 0 ? rig.mag1Socket : 0].getTranslation(new Vector3f());
-            Vector3f p2 = gunG[rig.mag2Socket].getTranslation(new Vector3f());
-            if (p1.distance(p2) > 0.5f) drawMag(rig, attach, rig.mag2Socket, entry, consumers, light);
+    /** Magazines / rounds are separate static meshes in RoN. Later sockets are skipped while they sit on the first. */
+    private static void renderAttachments(GunRig rig, Matrix4f attach, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
+        Vector3f p0 = new Vector3f(), pi = new Vector3f();
+        for (GunRig.Attachment at : rig.attachments) {
+            int[] s = at.sockets();
+            gunG[s[0]].getTranslation(p0);
+            for (int i = 0; i < s.length; i++) {
+                if (i > 0 && gunG[s[i]].getTranslation(pi).distance(p0) <= 0.5f) continue;
+                oneSkin[0].set(attach).mul(gunG[s[i]]).mul(at.mesh().invBind[0]);
+                at.mesh().skin(oneSkin);
+                at.mesh().emit(entry, consumers, light);
+            }
         }
-    }
-
-    private static void drawMag(GunRig rig, Matrix4f attach, int socket, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
-        magSkin[0].set(attach).mul(gunG[socket]).mul(rig.mag.invBind[0]);
-        rig.mag.skin(magSkin);
-        rig.mag.emit(entry, consumers, light);
     }
 
     private static Matrix4f viewOf(GunRig rig) {
@@ -127,9 +140,16 @@ public final class FirstPersonRenderer {
         rig.arms.globals(alp, alr, armsG);
         rig.gun.globals(wlp, wlr, gunG);
         Matrix4f hip = viewOf(rig).mul(armsG[rig.attachBone]).mul(gunG[0]);
-        Matrix4f aim = new Matrix4f(C).scale(0.01f).translate(-rig.adsEye[0], -rig.adsEye[1], -rig.adsEye[2]);
-        Matrix4f d = aim.mul(hip.invert());
+        float ex = rig.adsEye[0], ey = rig.adsEye[1], ez = rig.adsEye[2];
+        if (rig.adsKeepDistance) {
+            Vector3f cam = new Matrix4f(hip).invert().transformPosition(new Vector3f()); // camera in gun space, cm
+            ey = Math.max(12f, cam.y);
+        }
+        Matrix4f aim = new Matrix4f(C).scale(0.01f).translate(-ex, -ey, -ez);
+        Matrix4f d = aim.mul(new Matrix4f(hip).invert());
         d.getTranslation(adsT);
         d.getUnnormalizedRotation(adsQ).normalize();
+        ads = 0;
+        kick = 0;
     }
 }
