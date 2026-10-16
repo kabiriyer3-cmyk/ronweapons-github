@@ -25,6 +25,7 @@ import ronweapons.RonWeapons;
 import ronweapons.WeaponDef;
 import ronweapons.net.ActionPayload;
 import ronweapons.net.FirePayload;
+import ronweapons.net.CuffStatePayload;
 import ronweapons.net.FxPayload;
 
 public final class RonWeaponsClient implements ClientModInitializer {
@@ -48,6 +49,16 @@ public final class RonWeaponsClient implements ClientModInitializer {
         MinecraftClient mc = MinecraftClient.getInstance();
         return mc.player == null ? null : RonWeapons.def(mc.player.getMainHandStack());
     }
+
+    /** folder of the rig in the private pack for what is in the main hand: a gun id, "zipcuffs", or null */
+    public static String heldRigId() {
+        WeaponDef d = heldDef();
+        if (d != null) return d.id();
+        return CuffClient.holdingCuffs() ? "zipcuffs" : null;
+    }
+
+    /** a gun or the zipcuffs: RoN arms are drawn instead of the vanilla hand */
+    public static boolean holdingRig() { return heldRigId() != null; }
 
     public static boolean holdingGun() {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -82,6 +93,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(RonWeaponsClient::tick);
         ClientTickEvents.END_CLIENT_TICK.register(Fx::tick);
         ClientPlayNetworking.registerGlobalReceiver(FxPayload.ID, (payload, ctx) -> Fx.onFx(payload));
+        ClientPlayNetworking.registerGlobalReceiver(CuffStatePayload.ID, (payload, ctx) -> CuffClient.onState(payload));
         WorldRenderEvents.AFTER_ENTITIES.register(Fx::render);
     }
 
@@ -89,18 +101,21 @@ public final class RonWeaponsClient implements ClientModInitializer {
         ClientPlayerEntity player = mc.player;
         if (player == null) return;
         WeaponDef def = heldDef();
+        String rigId = heldRigId();
         boolean holding = def != null;
         int slot = player.getInventory().selectedSlot;
         ItemStack stack = player.getMainHandStack();
-        if (holding && (!wasHolding || slot != heldSlot || !def.id().equals(heldId))) {
-            heldId = def.id();
-            ANIM.setRig(GunRig.get(mc.getResourceManager(), def.id()));
+        if (rigId != null && (!wasHolding || slot != heldSlot || !rigId.equals(heldId))) {
+            heldId = rigId;
+            ANIM.setRig(GunRig.get(mc.getResourceManager(), rigId));
             ANIM.draw();
-            localAmmo = RonWeapons.ammo(stack);
+            if (holding) localAmmo = RonWeapons.ammo(stack);
         }
-        wasHolding = holding;
+        wasHolding = rigId != null;
         heldSlot = slot;
+        CuffClient.tick(mc);
         if (!holding) {
+            if (rigId != null && GunRig.get(mc.getResourceManager(), rigId) == null) ANIM.update(0.05f);
             while (reloadKey.wasPressed()) { }
             while (selectKey.wasPressed()) { }
             while (magKey.wasPressed()) { }
@@ -190,6 +205,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     player.setYaw(player.getYaw() + (player.getRandom().nextFloat() - 0.5f) * 0.4f);
                 } else if (!wasAttack) {
                     player.playSound(snd.dry(), 0.6f, 1.0f);
+                    ANIM.dryfire();
                 }
             }
         }

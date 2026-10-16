@@ -6,6 +6,9 @@ package ronweapons.client;
  */
 public final class GunAnimator {
     private static final float FADE_DEFAULT = 0.2f;
+    /** guns without an exportable draw clip get a procedural raise from below (seconds) */
+    private static final float PROC_DRAW = 0.45f;
+    private float procDraw;
 
     private String cur = "draw", prev = null;
     private float curT, prevT, fade, fadeDur = 0f;
@@ -59,9 +62,26 @@ public final class GunAnimator {
 
     /** On equip: the draw clip, or straight to idle for guns without one (also cancels a reload of the previous gun). */
     public void draw() {
+        procDraw = 0;
         if (has("draw")) play("draw", false, 0.05f);
-        else play("idle", true, 0.1f);
+        else {
+            play("idle", true, 0.1f);
+            procDraw = PROC_DRAW;
+            java.util.List<GunRig.Cue> list = rig == null ? null : rig.cues.get("draw");
+            if (list != null) for (GunRig.Cue c : list) RonWeaponsClient.playLocal(c.sound(), c.volume(), 1f);
+        }
     }
+
+    /** 1 at the start of a procedural draw, 0 when the gun is up */
+    public float procDraw() { return procDraw / PROC_DRAW; }
+
+    /** empty trigger pull (revolver: the hammer still cocks and falls) */
+    public void dryfire() {
+        if (rig != null && rig.actions.containsKey("dryfire") && canAct()) play("dryfire", false, 0.05f);
+    }
+
+    /** back to the locomotion pose (cancelled restrain) */
+    public void toIdle() { play("idle", true, 0.2f); }
     public void fire(boolean last, boolean ads) {
         String a = last && has("fire_last") ? "fire_last" : (ads && rig != null && rig.actions.containsKey("fire_ads") ? "fire_ads" : "fire");
         play(a, false, 0.05f);
@@ -88,16 +108,18 @@ public final class GunAnimator {
     public boolean reloading() { return cur.startsWith("reload"); }
 
     public boolean canFire() {
-        if (locomotion(cur) || cur.startsWith("fire")) return true;
+        if (procDraw > PROC_DRAW * 0.3f) return false;
+        if (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire")) return true;
         return cur.equals("draw") && curT > duration("draw") * 0.75f;
     }
 
-    public boolean canReload() { return locomotion(cur) || cur.startsWith("fire") || cur.equals("magcheck"); }
-    public boolean canAct() { return locomotion(cur) || cur.startsWith("fire"); }
+    public boolean canReload() { return procDraw <= PROC_DRAW * 0.3f && (locomotion(cur) || cur.startsWith("fire") || cur.equals("magcheck") || cur.equals("dryfire")); }
+    public boolean canAct() { return procDraw <= PROC_DRAW * 0.3f && (locomotion(cur) || cur.startsWith("fire") || cur.equals("dryfire")); }
 
     public void update(float dt) {
         curT += dt;
         prevT += dt;
+        procDraw = Math.max(0f, procDraw - dt);
         fade += dt;
         fireCues();
         String loco = sprinting && has("run") ? "run" : (moving && has("walk") ? "walk" : "idle");

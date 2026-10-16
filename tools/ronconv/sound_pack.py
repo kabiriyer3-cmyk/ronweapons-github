@@ -24,13 +24,26 @@ for line in open(os.path.join(PRIV, "scan", "weapons_bank_names.txt"), encoding=
     NAMES.setdefault(n, []).append(int(i))
 
 
-def load(key, which=0):
-    """key: subsong index (int) or bank sample name (str; which = n-th sample with that name)."""
-    i = key if isinstance(key, int) else NAMES[key][min(which, len(NAMES[key]) - 1)]
+# other FMOD banks: names come from the FSB5 name table (0-based), vgmstream subsongs are 1-based
+BANKS = {}
+for bank in ("Interactions", "SWAT"):
+    f = os.path.join(PRIV, "scan", bank + "_bank_names.txt")
+    if os.path.exists(f):
+        BANKS[bank] = {}
+        for line in open(f, encoding="utf-8").read().splitlines():
+            i, n = line.split("\t")
+            BANKS[bank].setdefault(n, []).append(int(i) + 1)
+
+
+def load(key, which=0, bank=None):
+    """key: subsong index (int) or bank sample name (str; which = n-th sample with that name). bank: other .bank name."""
+    names = NAMES if bank is None else BANKS[bank]
+    i = key if isinstance(key, int) else names[key][min(which, len(names[key]) - 1)]
+    path = BANK if bank is None else os.path.join(os.path.dirname(BANK), bank + ".bank")
     os.makedirs(CACHE, exist_ok=True)
-    wav = os.path.join(CACHE, f"{i:04d}.wav")
+    wav = os.path.join(CACHE, f"{i:04d}.wav" if bank is None else f"{bank}_{i:04d}.wav")
     if not os.path.exists(wav):
-        subprocess.run([VGM, "-s", str(i), "-o", wav, BANK], check=True, capture_output=True)
+        subprocess.run([VGM, "-s", str(i), "-o", wav, path], check=True, capture_output=True)
     a, sr = sf.read(wav, always_2d=True, dtype="float32")
     if sr != SR:  # a few banks samples are 44.1k: linear resample
         t = np.arange(int(len(a) * SR / sr)) * (sr / SR)
@@ -163,10 +176,12 @@ def main():
         "eject": ["Python_ReloadBulletEject"], "insert": ["Python_ReloadBulletInsert"], "cyl_in": ["Python_ReloadCylIn"],
         "check": ["Python_AmmoCheck"],
     })
-    rel = [[0.0, "python.reload_start"], [0.27, "python.cyl_out"], [0.85, "python.eject"],
-           [1.36, "python.insert"], [2.40, "python.cyl_in"]]
+    # ejector rod pushed at 0.76 s, speedloader seated at 1.68 s (tag_rod / tag_speedloader motion, diag_v6.py)
+    rel = [[0.0, "python.reload_start"], [0.27, "python.cyl_out"], [0.64, "python.eject"],
+           [1.50, "python.insert"], [2.40, "python.cyl_in"]]
+    # Python_AmmoCheck is the whole cylinder check (swing out ~0.3 s, close ~1.9 s): one cue, nothing layered on top
     cues["python"] = {"draw": [[0.0, "python.draw"]], "reload_tac": rel, "reload_empty": rel,
-                      "magcheck": [[0.25, "python.cyl_out"], [0.6, "python.check"], [1.85, "python.cyl_in"]]}
+                      "magcheck": [[0.0, "python.check"]]}
 
     # ---------------- Mossberg 590A1 (RoN's pump guns share the 870 sample set)
     p.gunshots("m590", [[(("870-" + str(k + 1), 0), 0.85, 0), (f"870_MidReflection_0{k + 1}", 0.6, 0), (f"870_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
@@ -174,7 +189,7 @@ def main():
     p.event("m590.dryfire", [p.write("m590", "dryfire", load("weap_870_dryfire_01"))], "subtitles.ronweapons.dryfire")
     p.event("m590.reload", [p.write("m590", "reload_3p", load("weap_870_shell_in_01"), mono=True)], "subtitles.ronweapons.m590.reload", attenuation=20)
     p.foley("m590", {
-        "draw": ["m590_firstDraw"],
+        "draw": [f"Universal_Long_Draw_0{i}" for i in range(1, 5)],
         "pump_back": [f"weap_870_pump_out_0{i}" for i in range(1, 6)],
         "pump_fwd": [f"weap_870_pump_in_0{i}" for i in range(1, 6)],
         "reload_start": ["weap_870_reload_start_01", "weap_870_reload_start_02"],
@@ -195,6 +210,20 @@ def main():
         "reload_start_empty": [[0.12, "m590.pump_back"], [0.95, "m590.shell_port"], [1.68, "m590.pump_fwd"], [2.05, "m590.shell_grab"]],
         "magcheck": [[0.25, "m590.check"]],
     }
+
+    # ---------------- Zipcuffs (Interactions / SWAT banks)
+    p.foley("zipcuffs", {
+        "draw": [(f"foley_plastic_cuffs_pressure0{i}", 0, "SWAT") for i in range(1, 7)],
+        "grab": [("arrest_player_01_step01", 0, "Interactions"), ("arrest_player_01_step01_02", 0, "Interactions"), ("arrest_player_01_step01_03", 0, "Interactions")],
+        "cuff": [("Ziptie", 0, "Interactions")],
+    })
+    p.event("zipcuffs.cuff_3p", [p.write("zipcuffs", "cuff_3p", mix((load("Ziptie", 0, "Interactions"), 1.0, 0),
+                                                                    (load("arrest_player_02_step04", 0, "Interactions"), 0.6, 0.0)), mono=True)],
+            "subtitles.ronweapons.zipcuffs.cuff", attenuation=16)
+    p.event("zipcuffs.cut", [p.write("zipcuffs", "cut", load("foley_plastic_cuffs_pressure02", 0, "SWAT"), mono=True)],
+            "subtitles.ronweapons.zipcuffs.cut", attenuation=12)
+    # fp_zipcuffs_add_restrain_downed (1.33 s): hands on the wrists, the right hand pulls the tie at ~0.7 s
+    cues["zipcuffs"] = {"draw": [[0.0, "zipcuffs.draw", 0.6]], "restrain": [[0.0, "zipcuffs.grab", 0.8], [0.27, "zipcuffs.cuff"]]}
 
     # brass hitting the floor (client debris)
     for wid, kind in (("m4a1", "556"), ("g19", "9mm"), ("python", "9mm"), ("m590", "SH")):

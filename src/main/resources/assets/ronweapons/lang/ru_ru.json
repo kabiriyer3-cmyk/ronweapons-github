@@ -31,5 +31,12 @@
   "ronweapons.optic.t2": "Aimpoint Micro T-2",
   "ronweapons.optic.hs510c": "Holosun 510C",
   "ronweapons.optic.rmr": "Trijicon RMR",
-  "ronweapons.optic.sro": "Trijicon SRO"
+  "ronweapons.optic.sro": "Trijicon SRO",
+  "item.ronweapons.zipcuffs": "Пластиковые стяжки",
+  "subtitles.ronweapons.zipcuffs.cuff": "Стяжки затянуты",
+  "subtitles.ronweapons.zipcuffs.cut": "Стяжки срезаны",
+  "ronweapons.cuffs.not_compliant": "Цель не подчиняется: сначала подави её (≤ 50% здоровья)",
+  "ronweapons.cuffs.done": "Задержан: %s",
+  "ronweapons.cuffs.released": "Освобождён: %s",
+  "ronweapons.cuffs.already": "Уже в стяжках (Shift + ПКМ, чтобы срезать)"
 }

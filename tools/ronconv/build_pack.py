@@ -132,6 +132,9 @@ WEAPONS = {
             "reload_tac":   (f"{PYFP}/base_male/fp_python_add_spd_reload", f"{PYFP}/ron_python_fix/fp_python_add_spd_reload_weapon"),
             "reload_empty": (f"{PYFP}/base_male/fp_python_add_spd_reload", f"{PYFP}/ron_python_fix/fp_python_add_spd_reload_weapon"),
             "magcheck":     (f"{PYFP}/base_male/fp_python_add_mag_check", f"{PYFP}/ron_python_fix/fp_python_add_mag_check_weapon"),
+            # trigger pull on an empty cylinder: the hammer cocks and falls (the live-fire weapon clip is ACL-only)
+            "dryfire":      (None, f"{PYREV}/weapon/fp_python_add_dryfire_weapon"),
+            # no exportable draw: the client raises the idle pose procedurally
         },
     },
     "m590": {
@@ -156,6 +159,19 @@ WEAPONS = {
             "reload_end":         (f"{M590A}/fp_M590_add_reload_end_A", f"{M590W}/fp_M590_add_reload_end_A_weapon"),
             "magcheck":           (f"{M590A}/fp_M590_add_magcheck", f"{M590W}/fp_M590_add_magcheck_weapon"),
         },
+    },
+}
+
+# Zipcuffs: a "weapon" with no gun logic. SK_Device_Zipcuffs is rooted at J_Gun like the guns, so it rides weapon_right.
+ZIP = f"{A}/FP/Zipcuffs/base_male"
+WEAPONS["zipcuffs"] = {
+    "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Devices/Zipcuffs/Meshes/SK_Device_Zipcuffs",
+    "ads_eye": [0.0, None, 0.0],
+    "tp": {"back": 0.0},
+    "actions": {
+        "draw":     (f"{ZIP}/fp_zipcuffs_add_draw", None),
+        "idle":     (f"{ZIP}/fp_zipcuffs_idle_pose", None),
+        "restrain": (f"{ZIP}/fp_zipcuffs_add_restrain_downed", None),
     },
 }
 
@@ -281,6 +297,11 @@ class Textures:
             print(f"  ! no base colour for material {mat}, using a grey placeholder")
             src = os.path.join(OUT, "_grey.png")
             Image.new("RGBA", (4, 4), (90, 90, 90, 255)).save(src)
+            ao = find_one("Zipcuffs_AO.png") if folder == "zipcuffs" else None
+            if ao:  # Zipcuff_M is a flat black plastic: darken its AO map instead of plain grey
+                src = os.path.join(OUT, "_zipcuffs.png")
+                g = Image.open(ao).convert("L").point(lambda v: int(14 + v * 0.16))
+                Image.merge("RGBA", (g, g, g.point(lambda v: min(255, v + 2)), Image.new("L", g.size, 255))).save(src)
         name = "".join(c if c.isalnum() or c in "_-." else "_" for c in os.path.splitext(os.path.basename(src))[0].lower())
         key = f"{folder}/{name}"
         if key not in self.written:

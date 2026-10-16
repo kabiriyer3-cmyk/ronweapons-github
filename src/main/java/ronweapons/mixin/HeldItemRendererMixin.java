@@ -19,11 +19,11 @@ public abstract class HeldItemRendererMixin {
     private void ronweapons$renderGun(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
                                       float swingProgress, ItemStack item, float equipProgress, MatrixStack matrices,
                                       VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
-        if (!RonWeaponsClient.holdingGun()) return;
+        if (!RonWeaponsClient.holdingRig()) return;
         if (hand == Hand.MAIN_HAND) {
             if (FirstPersonRenderer.render(matrices, vertexConsumers, light)) ci.cancel();
         } else {
-            ci.cancel(); // both RoN hands are on the rifle
+            ci.cancel(); // both RoN hands are busy (rifle / zipcuffs)
         }
     }
 }

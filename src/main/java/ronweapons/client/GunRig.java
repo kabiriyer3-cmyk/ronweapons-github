@@ -33,7 +33,7 @@ public final class GunRig {
     static final String[] ACTIONS = {
             "draw", "idle", "idle_empty", "walk", "run", "fire", "fire_last", "fire_ads",
             "reload_tac", "reload_empty", "magcheck", "select_auto", "select_semi",
-            "reload_start", "reload_start_empty", "reload_loop", "reload_end"
+            "reload_start", "reload_start_empty", "reload_loop", "reload_end", "dryfire", "restrain"
     };
 
     /** One RoN action: an arms clip and (optionally) the matching weapon clip, mapped to mesh bones. */

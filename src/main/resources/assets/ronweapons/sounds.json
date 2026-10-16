@@ -222,5 +222,27 @@
         "volume": 0.8
       }
     ]
+  },
+  "zipcuffs.cuff_3p": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.leash_knot.place",
+        "type": "event",
+        "pitch": 1.3,
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.zipcuffs.cuff"
+  },
+  "zipcuffs.cut": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.sheep.shear",
+        "type": "event",
+        "pitch": 1.2,
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.zipcuffs.cut"
   }
 }

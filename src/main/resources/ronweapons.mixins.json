@@ -7,9 +7,13 @@
     "HeldItemRendererMixin",
     "ItemRendererMixin",
     "MinecraftClientMixin",
-    "PlayerEntityRendererMixin"
+    "PlayerEntityRendererMixin",
+    "LivingEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "mixins": [
+    "MobEntityMixin"
+  ]
 }

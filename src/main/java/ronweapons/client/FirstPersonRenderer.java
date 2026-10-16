@@ -47,12 +47,13 @@ public final class FirstPersonRenderer {
 
     public static boolean render(MatrixStack matrices, VertexConsumerProvider consumers, int light) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        WeaponDef def = RonWeaponsClient.heldDef();
-        GunRig rig = def == null ? null : GunRig.get(mc.getResourceManager(), def.id());
+        WeaponDef def = RonWeaponsClient.heldDef(); // null for the zipcuffs
+        String rigId = RonWeaponsClient.heldRigId();
+        GunRig rig = rigId == null ? null : GunRig.get(mc.getResourceManager(), rigId);
         RonWeaponsClient.ANIM.setRig(rig);
         if (rig == null) {
-            if (def != null && !def.id().equals(warnedFor) && mc.player != null) {
-                warnedFor = def.id();
+            if (rigId != null && !rigId.equals(warnedFor) && mc.player != null) {
+                warnedFor = rigId;
                 mc.player.sendMessage(Text.translatable("ronweapons.missing_pack"), false);
             }
             return false;
@@ -73,12 +74,12 @@ public final class FirstPersonRenderer {
         Matrix4f view = viewOf(rig);
         Matrix4f attach = new Matrix4f(view).mul(armsG[rig.attachBone]);
         ItemStack stack = mc.player.getMainHandStack();
-        GunRig.Optic optic = rig.optics.get(def.optics()[RonWeapons.optic(stack)]);
+        GunRig.Optic optic = def == null ? null : rig.optics.get(def.optics()[RonWeapons.optic(stack)]);
         Ads adsD = adsByOptic.getOrDefault(optic == null ? "iron" : optic.id(), adsByOptic.get("iron"));
         Vector3f adsT = adsD.t();
         Quaternionf adsQ = adsD.q();
 
-        boolean wantAds = RonWeaponsClient.aiming() && !anim.reloading();
+        boolean wantAds = def != null && RonWeaponsClient.aiming() && !anim.reloading();
         ads += (wantAds ? 1 : -1) * dt / ADS_TIME;
         ads = Math.max(0, Math.min(1, ads));
         if (ads > 0) {
@@ -95,6 +96,15 @@ public final class FirstPersonRenderer {
             view.mulLocal(d);
             attach.mulLocal(d);
             kick *= (float) Math.exp(-dt * 13.0);
+        }
+
+        float pd = anim.procDraw();
+        if (pd > 0) {
+            // no RoN draw clip: swing the idle pose up from below the screen
+            float e = pd * pd * (3 - 2 * pd);
+            Matrix4f d = new Matrix4f().translation(0.03f * e, -0.24f * e, 0.06f * e).rotateX(-1.1f * e).rotateZ(0.35f * e);
+            view.mulLocal(d);
+            attach.mulLocal(d);
         }
 
         // camera-space sockets for world effects (tracer start, brass, dropped mag)

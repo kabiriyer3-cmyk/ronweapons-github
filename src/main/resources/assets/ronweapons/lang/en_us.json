@@ -31,5 +31,12 @@
   "ronweapons.optic.t2": "Aimpoint Micro T-2",
   "ronweapons.optic.hs510c": "Holosun 510C",
   "ronweapons.optic.rmr": "Trijicon RMR",
-  "ronweapons.optic.sro": "Trijicon SRO"
+  "ronweapons.optic.sro": "Trijicon SRO",
+  "item.ronweapons.zipcuffs": "Zipcuffs",
+  "subtitles.ronweapons.zipcuffs.cuff": "Zipcuffs tightened",
+  "subtitles.ronweapons.zipcuffs.cut": "Zipcuffs cut",
+  "ronweapons.cuffs.not_compliant": "Not compliant: wear the target down first (50% health or less)",
+  "ronweapons.cuffs.done": "Restrained: %s",
+  "ronweapons.cuffs.released": "Released: %s",
+  "ronweapons.cuffs.already": "Already restrained (sneak + right click to cut free)"
 }

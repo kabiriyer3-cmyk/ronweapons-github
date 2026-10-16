@@ -73,6 +73,9 @@ public final class RonWeapons implements ModInitializer {
     }
 
     public static final Item M4A1 = ITEMS.get("m4a1");
+    public static final Item ZIPCUFFS = Registry.register(Registries.ITEM, id("zipcuffs"), new ZipcuffsItem(new Item.Settings().maxCount(16)));
+    public static final SoundEvent SND_CUFF = sound("zipcuffs.cuff_3p");
+    public static final SoundEvent SND_CUT = sound("zipcuffs.cut");
 
     private static SoundEvent sound(String path) {
         return Registry.register(Registries.SOUND_EVENT, id(path), SoundEvent.of(id(path)));
@@ -116,7 +119,11 @@ public final class RonWeapons implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> ITEMS.values().forEach(item -> entries.add(item)));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
+            ITEMS.values().forEach(item -> entries.add(item));
+            entries.add(ZIPCUFFS);
+        });
+        Cuffs.init();
 
         PayloadTypeRegistry.playC2S().register(FirePayload.ID, FirePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ActionPayload.ID, ActionPayload.CODEC);

@@ -16,6 +16,12 @@ public abstract class MinecraftClientMixin {
         if (RonWeaponsClient.holdingGun()) cir.setReturnValue(false);
     }
 
+    /** With the zipcuffs out, right click restrains (CuffClient) instead of trading with / using the mob. */
+    @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
+    private void ronweapons$cuffUse(CallbackInfo ci) {
+        if (ronweapons.client.CuffClient.holdingCuffs()) ci.cancel();
+    }
+
     @Inject(method = "handleBlockBreaking", at = @At("HEAD"), cancellable = true)
     private void ronweapons$noMining(boolean breaking, CallbackInfo ci) {
         if (RonWeaponsClient.holdingGun()) ci.cancel();
