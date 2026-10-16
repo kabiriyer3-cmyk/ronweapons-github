@@ -76,12 +76,12 @@ public final class GunAnimator {
             System.arraycopy(rig.gun.bindPos, 0, tmpWP, 0, tmpWP.length);
             System.arraycopy(rig.gun.bindRot, 0, tmpWR, 0, tmpWR.length);
             sample(rig, prev, prevT, prevLoop, prevEmpty, tmpAP, tmpAR, tmpWP, tmpWR);
-            blend(tmpAP, tmpAR, alp, alr, w);
-            blend(tmpWP, tmpWR, wlp, wlr, w);
+            blend(tmpAP, tmpAR, alp, alr, w, null);
+            blend(tmpWP, tmpWR, wlp, wlr, w, rig.gunNoBlend);
         }
     }
 
-    private static void sample(GunRig rig, String name, float t, boolean loop, boolean emptyBolt,
+    static void sample(GunRig rig, String name, float t, boolean loop, boolean emptyBolt,
                                float[] alp, float[] alr, float[] wlp, float[] wlr) {
         GunRig.Action a = rig.actions.get(name);
         GunRig.Action idle = rig.actions.get("idle");
@@ -97,11 +97,15 @@ public final class GunAnimator {
         }
     }
 
-    /** to = lerp(from, to, w) */
-    private static void blend(float[] fp, float[] fr, float[] tp, float[] tr, float w) {
-        for (int i = 0; i < tp.length; i++) tp[i] = fp[i] + (tp[i] - fp[i]) * w;
+    /** to = lerp(from, to, w); bones flagged in skip keep the incoming pose */
+    private static void blend(float[] fp, float[] fr, float[] tp, float[] tr, float w, boolean[] skip) {
+        for (int i = 0; i < tp.length; i++) {
+            if (skip != null && skip[i / 3]) continue;
+            tp[i] = fp[i] + (tp[i] - fp[i]) * w;
+        }
         float[] tmp = new float[4];
         for (int b = 0; b < tr.length / 4; b++) {
+            if (skip != null && skip[b]) continue;
             RonClip.nlerp(fr, b * 4, tr, b * 4, w, tmp, 0);
             System.arraycopy(tmp, 0, tr, b * 4, 4);
         }

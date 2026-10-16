@@ -2,10 +2,15 @@ package ronweapons.client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
@@ -38,9 +43,15 @@ public final class GunRig {
         }
     }
 
-    public final RonMesh arms, gun;
+    public final RonMesh arms, gun, mag;
     public final Map<String, Action> actions = new HashMap<>();
     public final int attachBone, cameraBone, sightBone, muzzleBone;
+    /** sockets the separate magazine mesh hangs on; -1 if absent */
+    public final int mag1Socket, mag2Socket, mag1Bone, mag2Bone;
+    /** gun bones whose clip changes must snap instead of blend (magazines teleport between hand, well and pouch) */
+    public final boolean[] gunNoBlend;
+    /** ADS eye position in gun space (cm): on the iron sight line, behind the rear aperture */
+    public final float[] adsEye = {0f, 11.0f, 9.42f};
     public final Matrix4f cameraBindRot;
 
     private static GunRig instance;
@@ -50,6 +61,18 @@ public final class GunRig {
     private GunRig(ResourceManager rm) throws IOException {
         arms = RonMesh.read(open(rm, BASE + "arms.ronmesh"));
         gun = RonMesh.read(open(rm, BASE + "gun.ronmesh"));
+        Optional<Resource> magRes = rm.getResource(RonWeapons.id(BASE + "mag.ronmesh"));
+        mag = magRes.isEmpty() ? null : RonMesh.read(magRes.get().getInputStream());
+        Optional<Resource> meta = rm.getResource(RonWeapons.id(BASE + "rig.json"));
+        if (meta.isPresent()) {
+            try (InputStreamReader r = new InputStreamReader(meta.get().getInputStream(), StandardCharsets.UTF_8)) {
+                JsonObject o = JsonParser.parseReader(r).getAsJsonObject();
+                if (o.has("ads_eye")) {
+                    JsonArray a = o.getAsJsonArray("ads_eye");
+                    for (int k = 0; k < 3; k++) adsEye[k] = a.get(k).getAsFloat();
+                }
+            }
+        }
         for (String a : ACTIONS) {
             RonClip ac = clip(rm, BASE + "anims/" + a + "_arms.ronanim");
             RonClip wc = clip(rm, BASE + "anims/" + a + "_weapon.ronanim");
@@ -60,6 +83,15 @@ public final class GunRig {
         cameraBone = require(arms, "fp_camera");
         sightBone = gun.bone("SightSocket");
         muzzleBone = gun.bone("tag_muzzle");
+        mag1Socket = gun.bone("mag_01_socket");
+        mag2Socket = gun.bone("mag_02_socket");
+        mag1Bone = gun.bone("tag_mag_01");
+        mag2Bone = gun.bone("tag_mag_02");
+        gunNoBlend = new boolean[gun.parents.length];
+        for (int b = 0; b < gun.parents.length; b++) {
+            String n = gun.boneNames[b].toLowerCase(java.util.Locale.ROOT);
+            gunNoBlend[b] = n.startsWith("tag_mag_");
+        }
         cameraBindRot = new Matrix4f(arms.bindGlobal[cameraBone]).setTranslation(0, 0, 0);
     }
 

@@ -29,6 +29,10 @@ MAX_TEX = 2048
 
 ARMS_MESH = "ReadyOrNot/Content/ReadyOrNot/Character/SWAT/SWAT_Officer/SK_Char_SWAT_Heavy_FP_Arms.psk"
 GUN_MESH = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SK_WP_Rifle_M4.psk"
+# RoN attaches the magazine as its own static mesh to mag_01_socket / mag_02_socket
+MAG_MESH = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SM_Rif_M4A1_new_mag_static.psk"
+# iron-sight line (gun space, cm): front post tip z = 9.42 at y = -34.2, rear aperture at y ~ +3; eye 8 cm behind it
+ADS_EYE = [0.0, 11.0, 9.42]
 FP = "ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1"
 REV = "ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle"
 # action -> (arms clip, weapon clip); every clip is absolute (CUE4Parse bakes RoN additives onto the ref pose)
@@ -215,6 +219,12 @@ def main():
     gun = read_psk(exported(GUN_MESH[:-4], ".psk"))
     print("arms mesh:", write_mesh(arms, os.path.join(pack_dir, *BASE.split("/"), "arms.ronmesh"), tex_for, rigid=False))
     print("gun mesh :", write_mesh(gun, os.path.join(pack_dir, *BASE.split("/"), "gun.ronmesh"), tex_for, rigid=True))
+    mag_src = exported(MAG_MESH[:-4], ".psk")
+    if mag_src:
+        print("mag mesh :", write_mesh(read_psk(mag_src), os.path.join(pack_dir, *BASE.split("/"), "mag.ronmesh"), tex_for, rigid=True))
+    else:
+        print("  ! magazine mesh not exported, the rifle will have no magazine")
+    json.dump({"ads_eye": ADS_EYE}, open(os.path.join(pack_dir, *BASE.split("/"), "rig.json"), "w"))
     for action, (a_rel, w_rel) in ACTIONS.items():
         for kind, rel, mesh in (("arms", a_rel, arms), ("weapon", w_rel, gun)):
             if not rel:
