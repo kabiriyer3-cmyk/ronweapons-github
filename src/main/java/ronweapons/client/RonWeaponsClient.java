@@ -9,6 +9,9 @@ import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.client.sound.SoundInstance;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraft.resource.ResourceManager;
@@ -29,6 +32,14 @@ public final class RonWeaponsClient implements ClientModInitializer {
     private static boolean auto = true, wasAttack, wasHolding;
     private static int heldSlot = -1, localAmmo = -1;
     private static long nextShotNs, lastShotNs;
+
+    public static final Identifier FIRE_1P = RonWeapons.id("m4a1.fire_1p");
+
+    /** Non-positional sound for the local shooter (stereo 1P sounds from the private pack). */
+    public static void playLocal(Identifier sound, float volume, float pitch) {
+        MinecraftClient.getInstance().getSoundManager().play(new PositionedSoundInstance(sound, SoundCategory.PLAYERS,
+                volume, pitch, SoundInstance.createRandom(), false, 0, SoundInstance.AttenuationType.NONE, 0, 0, 0, true));
+    }
 
     public static boolean holdingGun() {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -91,6 +102,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
             if (localAmmo < RonWeapons.MAG_SIZE && ANIM.canReload()) {
                 boolean emptyMag = localAmmo <= 0;
                 ANIM.reload(emptyMag);
+                if (!ANIM.hasCues(ANIM.current())) player.playSound(RonWeapons.SND_RELOAD, 0.8f, 1.0f);
                 ClientPlayNetworking.send(new ActionPayload(emptyMag ? ActionPayload.RELOAD_EMPTY : ActionPayload.RELOAD_TAC));
             }
         }
@@ -119,6 +131,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     lastShotNs = now;
                     nextShotNs = now + AUTO_INTERVAL_NS;
                     ANIM.fire(localAmmo == 0);
+                    playLocal(FIRE_1P, 1.0f, 0.97f + player.getRandom().nextFloat() * 0.06f);
                     float kick = aiming() ? 0.45f : 0.7f;
                     player.setPitch(player.getPitch() - kick);
                     player.setYaw(player.getYaw() + (player.getRandom().nextFloat() - 0.5f) * 0.4f);

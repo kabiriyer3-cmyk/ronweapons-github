@@ -1,0 +1,12 @@
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_add_draw_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_add_tac_reload_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_spd_reload_empty_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_add_mag_check_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_add_fire_select_auto_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/montages/fp_m4a1_add_fire_select_semi_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/montages/fp_m4a1_add_tac_reload_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/montages/fp_m4a1_spd_reload_empty_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/montages/fp_m4a1_add_mag_check_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/montages/fp_m4a1_add_draw_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle/arms/montages/fp_m4a1_add_dryfire_Montage
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle/arms/montages/fp_m4a1_fire_single_aim_01_Montage

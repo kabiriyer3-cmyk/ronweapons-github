@@ -12,6 +12,7 @@ public final class GunAnimator {
     private boolean curLoop, prevLoop, curEmpty, prevEmpty;
     private boolean empty, moving, sprinting;
     private GunRig rig;
+    private int cueIdx;
 
     public void setRig(GunRig rig) { this.rig = rig; }
     public void setEmpty(boolean empty) { this.empty = empty; }
@@ -32,6 +33,21 @@ public final class GunAnimator {
         prev = cur; prevT = curT; prevLoop = curLoop; prevEmpty = curEmpty;
         cur = action; curT = 0; curLoop = loop; curEmpty = empty;
         fade = 0; fadeDur = fadeTime;
+        cueIdx = 0;
+    }
+
+    public String current() { return cur; }
+
+    public boolean hasCues(String a) { return rig != null && rig.cues.containsKey(a); }
+
+    /** RoN plays reload / mag check foley on its FMOD timeline; here the cues follow the clip time. */
+    private void fireCues() {
+        if (rig == null) return;
+        java.util.List<GunRig.Cue> list = rig.cues.get(cur);
+        while (list != null && cueIdx < list.size() && list.get(cueIdx).t() <= curT) {
+            GunRig.Cue c = list.get(cueIdx++);
+            RonWeaponsClient.playLocal(c.sound(), c.volume(), 1f);
+        }
     }
 
     public void draw() { play("draw", false, 0.05f); }
@@ -53,6 +69,7 @@ public final class GunAnimator {
         curT += dt;
         prevT += dt;
         fade += dt;
+        fireCues();
         String loco = sprinting && has("run") ? "run" : (moving && has("walk") ? "walk" : "idle");
         if (locomotion(cur)) {
             if (!cur.equals(loco)) play(loco, true, 0.3f);

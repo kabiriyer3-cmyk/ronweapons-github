@@ -230,7 +230,16 @@ def main():
         print("mag mesh :", write_mesh(read_psk(mag_src), os.path.join(pack_dir, *BASE.split("/"), "mag.ronmesh"), tex_for, rigid=True))
     else:
         print("  ! magazine mesh not exported, the rifle will have no magazine")
-    json.dump({"ads_eye": ADS_EYE}, open(os.path.join(pack_dir, *BASE.split("/"), "rig.json"), "w"))
+    rig_meta = {"ads_eye": ADS_EYE}
+    # RoN sounds (tools/ronconv/sound_pack.py): ogg files + sounds.json + cue table
+    snd = os.path.join(OUT, "sound_pack")
+    if os.path.isdir(snd):
+        shutil.copytree(os.path.join(snd, "assets"), os.path.join(pack_dir, "assets"), dirs_exist_ok=True)
+        rig_meta["cues"] = json.load(open(os.path.join(snd, "cues.json")))
+        print("sounds   :", len(os.listdir(os.path.join(snd, "assets", "ronweapons", "sounds", "ron", "m4a1"))), "ogg files")
+    else:
+        print("  ! no private/sound_pack: run sound_pack.py for RoN sounds")
+    json.dump(rig_meta, open(os.path.join(pack_dir, *BASE.split("/"), "rig.json"), "w"))
     for action, (a_rel, w_rel) in ACTIONS.items():
         for kind, rel, mesh in (("arms", a_rel, arms), ("weapon", w_rel, gun)):
             if not rel:

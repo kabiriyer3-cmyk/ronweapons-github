@@ -41,6 +41,7 @@ public final class RonWeapons implements ModInitializer {
     public static final double RANGE = 160.0;
     public static final float DAMAGE = 7.0f;          // 5.56: 3.5 hearts, x2 on headshots
     public static final long MIN_SHOT_INTERVAL_NS = 60_000_000L; // server-side cap (~1000 rpm)
+    // sounds: the shooter hears 1P sounds client-side right away; everyone else gets these from the server
     public static final int RELOAD_TAC_TICKS = 58;     // ~ length of fp_m4a1_add_tac_reload (3.1 s), refilled a bit before the end
     public static final int RELOAD_EMPTY_TICKS = 42;   // ~ fp_m4a1_spd_reload_empty (2.3 s)
 
@@ -91,7 +92,7 @@ public final class RonWeapons implements ModInitializer {
             if (reloadEnds.containsKey(player.getUuid()) || ammo(stack) >= MAG_SIZE) return;
             int ticks = ammo(stack) > 0 ? RELOAD_TAC_TICKS : RELOAD_EMPTY_TICKS;
             reloadEnds.put(player.getUuid(), serverTicks + ticks);
-            player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(), SND_RELOAD, SoundCategory.PLAYERS, 0.8f, 1.0f);
+            player.getWorld().playSound(player, player.getX(), player.getY(), player.getZ(), SND_RELOAD, SoundCategory.PLAYERS, 0.8f, 1.0f);
         }
     }
 
@@ -104,13 +105,13 @@ public final class RonWeapons implements ModInitializer {
         if (last != null && now - last < MIN_SHOT_INTERVAL_NS) return;
         ServerWorld world = player.getServerWorld();
         if (ammo(stack) <= 0) {
-            world.playSound(null, player.getX(), player.getY(), player.getZ(), SND_DRY, SoundCategory.PLAYERS, 0.6f, 1.0f);
+            world.playSound(player, player.getX(), player.getY(), player.getZ(), SND_DRY, SoundCategory.PLAYERS, 0.6f, 1.0f);
             return;
         }
         lastShot.put(player.getUuid(), now);
         // rounds are spent in creative too: otherwise the client counter resyncs back to a full mag
         stack.setDamage(Math.min(MAG_SIZE, stack.getDamage() + 1));
-        world.playSound(null, player.getX(), player.getY(), player.getZ(), SND_FIRE, SoundCategory.PLAYERS, 2.0f,
+        world.playSound(player, player.getX(), player.getY(), player.getZ(), SND_FIRE, SoundCategory.PLAYERS, 2.0f,
                 0.95f + world.random.nextFloat() * 0.1f);
 
         Vec3d start = player.getEyePos();

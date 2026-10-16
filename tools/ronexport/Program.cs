@@ -1,6 +1,7 @@
 // ronexport: read-only tool for Ready or Not paks.
 //   ronexport list   [paksDir] [outDir]                -> encryption check + asset listing
 //   ronexport export <targets.txt> [paksDir] [outDir]  -> meshes (psk), anims (psa), materials + textures (png)
+//   ronexport json   <targets.txt> [paksDir] [outDir]  -> property dump of each package (anim notifies, sound data, ...)
 // targets.txt: one package path per line (without extension) or a folder prefix ending with '/'. '#' = comment.
 // RoN uses unversioned properties, so exports need a .usmap made by UE4SS (Ctrl+Numpad6 in game).
 // Lookup order: env RON_USMAP, private\Mappings.usmap, <game>\ReadyOrNot\Binaries\Win64\Mappings.usmap.
@@ -17,6 +18,7 @@ using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Versions;
 using CUE4Parse_Conversion;
 using CUE4Parse_Conversion.Options;
+using Newtonsoft.Json;
 
 const string DefaultPaks = @"D:\SteamLibrary\steamapps\common\Ready Or Not\ReadyOrNot\Content\Paks";
 var mode = args.Length > 0 ? args[0] : "list";
@@ -46,6 +48,21 @@ DefaultFileProvider Open(string paksDir)
     return p;
 }
 
+List<string> Targets(DefaultFileProvider provider, string targetsFile)
+{
+    var targets = File.ReadAllLines(targetsFile).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#')).ToList();
+    var packages = new List<string>();
+    foreach (var t in targets)
+    {
+        if (t.EndsWith('/'))
+            packages.AddRange(provider.Files.Keys.Where(k => k.StartsWith(t, StringComparison.OrdinalIgnoreCase)
+                && k.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase)
+                && !k[t.Length..].Contains('/')).Select(k => k[..^".uasset".Length]));
+        else packages.Add(t);
+    }
+    return packages.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+}
+
 if (mode == "list")
 {
     var paksDir = args.Length > 1 ? args[1] : DefaultPaks;
@@ -59,6 +76,29 @@ if (mode == "list")
     return;
 }
 
+if (mode == "json")
+{
+    var paksDir = args.Length > 2 ? args[2] : DefaultPaks;
+    var outDir = args.Length > 3 ? args[3] : @"C:\Modding\ron-to-minecraft\private\json";
+    Directory.CreateDirectory(outDir);
+    var provider = Open(paksDir);
+    int ok = 0;
+    foreach (var pkgPath in Targets(provider, args[1]))
+    {
+        try
+        {
+            var exports = provider.LoadPackage(pkgPath).GetExports().ToList();
+            var json = JsonConvert.SerializeObject(exports, Formatting.Indented);
+            File.WriteAllText(Path.Combine(outDir, Path.GetFileName(Path.GetDirectoryName(pkgPath)) + "__" + Path.GetFileName(pkgPath) + ".json"), json);
+            ok++;
+            Console.WriteLine($"OK {pkgPath} ({json.Length} chars)");
+        }
+        catch (Exception e) { Console.WriteLine($"FAIL {pkgPath}: {e.Message}"); }
+    }
+    Console.WriteLine($"json ok: {ok}");
+    return;
+}
+
 if (mode == "export")
 {
     var targetsFile = args[1];
@@ -66,22 +106,12 @@ if (mode == "export")
     var outDir = args.Length > 3 ? args[3] : @"C:\Modding\ron-to-minecraft\private\export";
     Directory.CreateDirectory(outDir);
     var provider = Open(paksDir);
-
-    var targets = File.ReadAllLines(targetsFile).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#')).ToList();
-    var packages = new List<string>();
-    foreach (var t in targets)
-    {
-        if (t.EndsWith('/'))
-            packages.AddRange(provider.Files.Keys.Where(k => k.StartsWith(t, StringComparison.OrdinalIgnoreCase)
-                && k.EndsWith(".uasset", StringComparison.OrdinalIgnoreCase)
-                && !k[t.Length..].Contains('/')).Select(k => k[..^".uasset".Length]));
-        else packages.Add(t);
-    }
+    var packages = Targets(provider, targetsFile);
 
     var report = new List<string>();
     var session = new ExportSession(null);
     int queued = 0, skipped = 0;
-    foreach (var pkgPath in packages.Distinct(StringComparer.OrdinalIgnoreCase))
+    foreach (var pkgPath in packages)
     {
         IEnumerable<UObject> exports;
         try { exports = provider.LoadPackage(pkgPath).GetExports(); }
@@ -112,4 +142,4 @@ if (mode == "export")
     return;
 }
 
-Console.WriteLine("usage: ronexport list|export ...");
+Console.WriteLine("usage: ronexport list|export|json ...");

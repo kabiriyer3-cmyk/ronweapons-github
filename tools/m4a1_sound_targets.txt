@@ -1,0 +1,14 @@
+# arms clips used by the pack: their AnimNotifies carry the FMOD sound timing
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_add_draw
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_add_tac_reload
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_spd_reload_empty
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_add_mag_check
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_add_fire_select_auto
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/fp_m4a1_add_fire_select_semi
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle/arms/fp_m4a1_fire_single_aim_01
+# weapon side clips
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/fp_m4a1_add_tac_reload
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/fp_m4a1_spd_reload_empty
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/fp_m4a1_add_mag_check
+# per-weapon sound data asset
+ReadyOrNot/Content/Blueprints/Items/WeaponsRevised/SoundData/SoundData_M4A1

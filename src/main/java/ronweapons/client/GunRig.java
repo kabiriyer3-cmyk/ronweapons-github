@@ -53,6 +53,10 @@ public final class GunRig {
     /** ADS eye position in gun space (cm): on the iron sight line, behind the rear aperture */
     public final float[] adsEye = {0f, 11.0f, 9.42f};
     public final Matrix4f cameraBindRot;
+    /** sound cues per action: seconds into the clip -> sound event (from rig.json, made by build_pack.py) */
+    public final Map<String, java.util.List<Cue>> cues = new HashMap<>();
+
+    public record Cue(float t, Identifier sound, float volume) {}
 
     private static GunRig instance;
     private static boolean tried;
@@ -70,6 +74,19 @@ public final class GunRig {
                 if (o.has("ads_eye")) {
                     JsonArray a = o.getAsJsonArray("ads_eye");
                     for (int k = 0; k < 3; k++) adsEye[k] = a.get(k).getAsFloat();
+                }
+                if (o.has("cues")) {
+                    JsonObject c = o.getAsJsonObject("cues");
+                    for (String action : c.keySet()) {
+                        java.util.List<Cue> list = new java.util.ArrayList<>();
+                        for (var el : c.getAsJsonArray(action)) {
+                            JsonArray q = el.getAsJsonArray();
+                            list.add(new Cue(q.get(0).getAsFloat(), RonWeapons.id(q.get(1).getAsString()),
+                                    q.size() > 2 ? q.get(2).getAsFloat() : 1f));
+                        }
+                        list.sort(java.util.Comparator.comparingDouble(Cue::t));
+                        cues.put(action, list);
+                    }
                 }
             }
         }
