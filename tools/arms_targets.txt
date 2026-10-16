@@ -1,0 +1,2 @@
+# SWAT first-person arms
+ReadyOrNot/Content/ReadyOrNot/Character/SWAT/SWAT_Officer/SK_Char_SWAT_Heavy_FP_Arms

@@ -1,0 +1,10 @@
+# M4A1 vertical slice
+# weapon mesh + textures
+ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SK_WP_Rifle_M4
+ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SM_Rif_M4A1_new_mag_static
+ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Textures/
+# first-person animations (sequences, not montages)
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/weapon/
+ReadyOrNot/Content/ReadyOrNot/Animations/FP/M4A1/arms/
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle/weapon/
+ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/M4_Rifle/arms/

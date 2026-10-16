@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "ronweapons",
+  "version": "${version}",
+  "name": "RoN Weapons",
+  "description": "Ready or Not first-person weapons for Minecraft. Ships code only: models, textures and animations come from a private resource pack converted from your own Ready or Not install.",
+  "authors": ["hurma"],
+  "license": "MIT",
+  "icon": "assets/ronweapons/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["ronweapons.RonWeapons"],
+    "client": ["ronweapons.client.RonWeaponsClient"]
+  },
+  "mixins": ["ronweapons.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

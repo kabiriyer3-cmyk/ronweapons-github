@@ -1,0 +1,17 @@
+{
+  "m4a1.fire": {
+    "subtitle": "subtitles.ronweapons.m4a1.fire",
+    "sounds": [ { "name": "minecraft:entity.firework_rocket.blast", "type": "event", "pitch": 1.35, "volume": 1.0 } ]
+  },
+  "m4a1.reload": {
+    "subtitle": "subtitles.ronweapons.m4a1.reload",
+    "sounds": [ { "name": "minecraft:item.crossbow.loading_middle", "type": "event", "pitch": 0.8 } ]
+  },
+  "dryfire": {
+    "subtitle": "subtitles.ronweapons.dryfire",
+    "sounds": [ { "name": "minecraft:block.dispenser.fail", "type": "event", "pitch": 1.6, "volume": 0.6 } ]
+  },
+  "fireselect": {
+    "sounds": [ { "name": "minecraft:block.lever.click", "type": "event", "pitch": 1.8, "volume": 0.5 } ]
+  }
+}

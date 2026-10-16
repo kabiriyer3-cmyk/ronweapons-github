@@ -1,0 +1,19 @@
+# Never commit anything extracted from Ready or Not
+private/
+*.usmap
+*.psk
+*.pskx
+*.psa
+*.ronmesh
+*.ronanim
+RoN-Weapons-Private*.zip
+
+build/
+.gradle/
+run/
+out/
+*.iml
+.idea/
+tools/ronexport/bin/
+tools/ronexport/obj/
+__pycache__/

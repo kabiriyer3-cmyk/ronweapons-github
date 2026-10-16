@@ -1,0 +1,13 @@
+{
+  "item.ronweapons.m4a1": "M4A1",
+  "category.ronweapons": "RoN Weapons",
+  "key.ronweapons.reload": "Reload",
+  "key.ronweapons.fireselect": "Fire mode",
+  "key.ronweapons.magcheck": "Check magazine",
+  "subtitles.ronweapons.m4a1.fire": "M4A1 fires",
+  "subtitles.ronweapons.m4a1.reload": "M4A1 reloads",
+  "subtitles.ronweapons.dryfire": "Dry fire",
+  "ronweapons.mode.auto": "M4A1: AUTO",
+  "ronweapons.mode.semi": "M4A1: SEMI",
+  "ronweapons.missing_pack": "[RoN Weapons] Private resource pack not found: enable RoN-Weapons-Private in Resource Packs to get Ready or Not models and animations."
+}
