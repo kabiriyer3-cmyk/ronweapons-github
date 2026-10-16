@@ -31,6 +31,18 @@ M4FP, M4REV = f"{A}/FP/M4A1", f"{A}/Revised/FirstPerson/Weapons/M4_Rifle"
 G19FP, PYFP, PYREV = f"{A}/FP/G19", f"{A}/FP/PYTHON", f"{A}/Revised/FirstPerson/Weapons/Python"
 M590A, M590W = f"{A}/FP/M590/base_male", f"{A}/FP/M590/ron_m590"
 ATT = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Attachments"
+SHELL = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Shell"
+# Spent brass / dropped mags (client effects). eject_on: "fire" or the cue sound that ejects; vel: camera-space blocks/s
+FX = {
+    "m4a1": {"casing": f"{SHELL}/762x39mm/762x39mm_Shell", "eject_bone": "EjectBrassSocket", "eject_on": "fire", "vel": [2.6, 1.6, 0.6],
+             "mag_cue": "m4a1.mag_drop", "mag_socket": "mag_01_socket", "land_sound": "m4a1.casing_drop"},
+    "g19": {"casing": f"{SHELL}/9mm_Casing", "eject_bone": "tag_brass", "eject_on": "fire", "vel": [2.2, 1.9, 0.4],
+            "mag_cue": "g19.mag_drop", "mag_socket": "tag_mag_01_socket", "land_sound": "g19.casing_drop"},
+    "python": {"casing": f"{SHELL}/357_Magnum/357_Casing", "eject_bone": "mag_01_bullets_socket", "eject_on": "python.eject",
+               "count": 6, "vel": [0.0, -1.2, 0.6], "land_sound": "python.casing_drop"},
+    "m590": {"casing": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/New_Weapons/Supernova/Shell_Empty", "eject_bone": "tag_brass",
+             "eject_on": "m590.pump_back", "vel": [2.0, 1.3, 0.3], "land_sound": "m590.casing_drop"},
+}
 
 # Optics: mesh on a gun socket. The ADS eye goes through the centre of the RoN reticle plane ("Optic_Picture" material);
 # our own reticle texture is drawn there (dot / holo ring), lens glass and invisible helpers are skipped.
@@ -469,6 +481,15 @@ def main():
                 print(f"  ! suppressor {sp['mesh']} not exported")
         if "tp" in w:
             meta["tp"] = w["tp"]
+        fx = dict(FX.get(wid, {}))
+        if fx:
+            p = exported(fx.pop("casing"), ".psk")
+            if p:
+                print("   casing:", write_mesh(read_psk(p), os.path.join(base, "casing.ronmesh"), tf, rigid=True))
+                fx["casing"] = "casing"
+            else:
+                print(f"  ! {wid}: casing mesh not exported")
+            meta["fx"] = fx
         if wid in all_cues:
             meta["cues"] = all_cues[wid]
         json.dump(meta, open(os.path.join(base, "rig.json"), "w"))

@@ -60,6 +60,13 @@ public final class GunRig {
     /** A swappable optic on a gun socket. eye: ADS eye in gun space (cm) on the reticle line; hideGun: gun materials it replaces. */
     public record Optic(String id, RonMesh mesh, int socket, float[] eye, boolean keepDistance, boolean[] hideGun) {}
 
+    /**
+     * Spent brass / dropped mags. ejectOn: "fire" or the cue sound (e.g. "m590.pump_back") that ejects; count casings per eject;
+     * vel: camera-space eject velocity (blocks/s); magCue: cue sound at which the empty mag leaves the gun.
+     */
+    public record FxConfig(RonMesh casing, int ejectBone, String ejectOn, int count, float[] vel, String magCue,
+                           RonMesh mag, int magSocket, Identifier landSound) {}
+
     /** A muzzle device (suppressor) on a gun socket. */
     public record Muzzle(RonMesh mesh, int socket) {}
 
@@ -78,6 +85,7 @@ public final class GunRig {
     public final Map<String, List<Cue>> cues = new HashMap<>();
     public final Map<String, Optic> optics = new HashMap<>();
     public Muzzle suppressor;
+    public FxConfig fx;
     /** third person: how far (blocks) the gun sits back from the fist so the stock reaches the shoulder; yaw undoes the crossbow-pose inward angle */
     public float tpBack, tpYaw = -17.2f;
     /** third person: fist centre relative to the held-item frame (blocks); tweakable from rig.json "tp": {"offset": [x, y, z]} */
@@ -162,6 +170,23 @@ public final class GunRig {
             int socket = gun.bone(sp.get("socket").getAsString());
             if (r.isPresent() && socket >= 0) suppressor = new Muzzle(RonMesh.read(r.get().getInputStream()), socket);
         }
+        if (o.has("fx")) {
+            JsonObject f = o.getAsJsonObject("fx");
+            RonMesh casing = null;
+            if (f.has("casing")) {
+                Optional<Resource> r = rm.getResource(RonWeapons.id(base + f.get("casing").getAsString() + ".ronmesh"));
+                if (r.isPresent()) casing = RonMesh.read(r.get().getInputStream());
+            }
+            float[] vel = {2.4f, 1.8f, 0.5f};
+            if (f.has("vel")) for (int k = 0; k < 3; k++) vel[k] = f.getAsJsonArray("vel").get(k).getAsFloat();
+            int magSocket = f.has("mag_socket") ? gun.bone(f.get("mag_socket").getAsString()) : -1;
+            RonMesh mag = null;
+            if (magSocket >= 0 && !attachments.isEmpty()) mag = attachments.get(0).mesh();
+            fx = new FxConfig(casing, f.has("eject_bone") ? gun.bone(f.get("eject_bone").getAsString()) : -1,
+                    f.has("eject_on") ? f.get("eject_on").getAsString() : "fire", f.has("count") ? f.get("count").getAsInt() : 1, vel,
+                    f.has("mag_cue") ? f.get("mag_cue").getAsString() : null, mag, magSocket,
+                    f.has("land_sound") ? RonWeapons.id(f.get("land_sound").getAsString()) : null);
+        }
         if (o.has("tp")) {
             JsonObject tp = o.getAsJsonObject("tp");
             if (tp.has("back")) tpBack = tp.get("back").getAsFloat();
@@ -244,6 +269,14 @@ public final class GunRig {
     }
 
     public static String error(String id) { return ERRORS.get(id); }
+
+    /** seconds into the action at which a cue sound plays (ronweapons:&lt;sound&gt;), or -1 */
+    public float cueTime(String action, String sound) {
+        List<Cue> list = cues.get(action);
+        if (list == null) return -1f;
+        for (Cue c : list) if (c.sound().getPath().equals(sound)) return c.t();
+        return -1f;
+    }
 
     public static void invalidate() {
         RIGS.clear();

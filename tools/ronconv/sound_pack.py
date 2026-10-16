@@ -196,6 +196,10 @@ def main():
         "magcheck": [[0.25, "m590.check"]],
     }
 
+    # brass hitting the floor (client debris)
+    for wid, kind in (("m4a1", "556"), ("g19", "9mm"), ("python", "9mm"), ("m590", "SH")):
+        p.event(f"{wid}.casing_drop", [p.write(wid, f"casing_drop_{i}", load(f"{kind}Concrete_shell_drop0{i}"), mono=True) for i in range(1, 6)])
+
     os.makedirs(os.path.join(OUT, "assets", "ronweapons"), exist_ok=True)
     json.dump(p.events, open(os.path.join(OUT, "assets", "ronweapons", "sounds.json"), "w"), indent=1)
     json.dump(cues, open(os.path.join(OUT, "cues.json"), "w"), indent=1)

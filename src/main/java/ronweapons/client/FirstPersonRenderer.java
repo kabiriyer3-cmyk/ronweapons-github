@@ -97,6 +97,12 @@ public final class FirstPersonRenderer {
             kick *= (float) Math.exp(-dt * 13.0);
         }
 
+        // camera-space sockets for world effects (tracer start, brass, dropped mag)
+        int muzzle = rig.suppressor != null && RonWeapons.suppressed(stack) ? rig.suppressor.socket() : rig.muzzleBone;
+        Fx.Fp.update(muzzle < 0 ? null : new Matrix4f(attach).mul(gunG[muzzle]),
+                rig.fx == null || rig.fx.ejectBone() < 0 ? null : new Matrix4f(attach).mul(gunG[rig.fx.ejectBone()]),
+                rig.fx == null || rig.fx.magSocket() < 0 ? null : new Matrix4f(attach).mul(gunG[0])
+                        .mul(new Matrix4f(rig.gun.bindGlobal[0]).invert()).mul(rig.gun.bindGlobal[rig.fx.magSocket()]));
         for (int b = 0; b < armsG.length; b++) armsSkin[b].set(view).mul(armsG[b]).mul(rig.arms.invBind[b]);
         for (int b = 0; b < gunG.length; b++) gunSkin[b].set(attach).mul(gunG[b]).mul(rig.gun.invBind[b]);
         MatrixStack.Entry entry = matrices.peek();

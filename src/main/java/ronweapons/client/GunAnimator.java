@@ -53,6 +53,7 @@ public final class GunAnimator {
         while (list != null && cueIdx < list.size() && list.get(cueIdx).t() <= curT) {
             GunRig.Cue c = list.get(cueIdx++);
             RonWeaponsClient.playLocal(c.sound(), c.volume(), 1f);
+            Fx.localCue(rig, c.sound().getPath());
         }
     }
 

@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.client.MinecraftClient;
@@ -24,6 +25,7 @@ import ronweapons.RonWeapons;
 import ronweapons.WeaponDef;
 import ronweapons.net.ActionPayload;
 import ronweapons.net.FirePayload;
+import ronweapons.net.FxPayload;
 
 public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
@@ -78,6 +80,9 @@ public final class RonWeaponsClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(RonWeaponsClient::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(Fx::tick);
+        ClientPlayNetworking.registerGlobalReceiver(FxPayload.ID, (payload, ctx) -> Fx.onFx(payload));
+        WorldRenderEvents.AFTER_ENTITIES.register(Fx::render);
     }
 
     private static void tick(MinecraftClient mc) {
@@ -175,6 +180,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     lastShotNs = now;
                     nextShotNs = now + def.clientIntervalNs();
                     ANIM.fire(localAmmo == 0, aiming());
+                    Fx.localFire(GunRig.get(mc.getResourceManager(), def.id()));
                     FirstPersonRenderer.kick(def.viewKick());
                     boolean supp = RonWeapons.suppressed(stack);
                     playLocal(RonWeapons.id(def.id() + (supp ? ".fire_1p_supp" : ".fire_1p")), supp ? 0.8f : 1.0f,

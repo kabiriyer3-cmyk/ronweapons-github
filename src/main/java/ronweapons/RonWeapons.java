@@ -10,6 +10,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.BlockState;
 import net.minecraft.component.ComponentType;
@@ -36,7 +37,10 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
+import java.util.ArrayList;
+import java.util.List;
 import ronweapons.net.ActionPayload;
+import ronweapons.net.FxPayload;
 import ronweapons.net.FirePayload;
 
 public final class RonWeapons implements ModInitializer {
@@ -116,6 +120,7 @@ public final class RonWeapons implements ModInitializer {
 
         PayloadTypeRegistry.playC2S().register(FirePayload.ID, FirePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ActionPayload.ID, ActionPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(FxPayload.ID, FxPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(FirePayload.ID, (payload, ctx) -> fire(ctx.player()));
         ServerPlayNetworking.registerGlobalReceiver(ActionPayload.ID, (payload, ctx) -> action(ctx.player(), payload.action()));
 
@@ -179,6 +184,8 @@ public final class RonWeapons implements ModInitializer {
                 }
                 player.getWorld().playSound(player, player.getX(), player.getY(), player.getZ(), SOUNDS.get(d.id()).reload(),
                         SoundCategory.PLAYERS, 0.8f, 1.0f);
+                broadcast(player, new FxPayload(empty ? FxPayload.RELOAD_EMPTY : FxPayload.RELOAD_TAC, player.getId(),
+                        weaponIndex(d), player.getEyePos(), List.of()));
             }
             case ActionPayload.RELOAD_CANCEL -> {
                 Shells s = shellReloads.get(u);
@@ -223,6 +230,7 @@ public final class RonWeapons implements ModInitializer {
         Vec3d start = player.getEyePos();
         Vec3d aim = player.getRotationVec(1.0f);
         double range = d.pellets() > 1 ? SHOTGUN_RANGE : RANGE;
+        List<FxPayload.Hit> fx = new ArrayList<>();
         Map<Entity, Float> damage = new HashMap<>();
         Map<Entity, Vec3d> where = new HashMap<>();
         int blockFx = 0;
@@ -241,7 +249,12 @@ public final class RonWeapons implements ModInitializer {
                 if (target instanceof LivingEntity living && hit.getPos().y > living.getEyeY() - 0.25) dmg *= 2.0f;
                 damage.merge(target, dmg, Float::sum);
                 where.putIfAbsent(target, hit.getPos());
-            } else if (block.getType() == HitResult.Type.BLOCK && blockFx++ < 4) {
+                fx.add(new FxPayload.Hit(hit.getPos(), (byte) -1));
+            } else {
+                boolean onBlock = block.getType() == HitResult.Type.BLOCK;
+                fx.add(new FxPayload.Hit(stop, onBlock ? (byte) block.getSide().getId() : (byte) -1));
+            }
+            if (hit == null && block.getType() == HitResult.Type.BLOCK && blockFx++ < 4) {
                 BlockState state = world.getBlockState(block.getBlockPos());
                 Vec3d p = block.getPos();
                 world.spawnParticles(new BlockStateParticleEffect(ParticleTypes.BLOCK, state), p.x, p.y, p.z,
@@ -249,6 +262,7 @@ public final class RonWeapons implements ModInitializer {
                 world.spawnParticles(ParticleTypes.SMOKE, p.x, p.y, p.z, 2, 0.02, 0.02, 0.02, 0.01);
             }
         }
+        broadcast(player, new FxPayload(FxPayload.SHOT, player.getId(), weaponIndex(d), start, fx));
         // one damage call per target: pellets add up instead of being eaten by the hurt cooldown
         damage.forEach((target, dmg) -> {
             target.timeUntilRegen = 0;
@@ -256,6 +270,18 @@ public final class RonWeapons implements ModInitializer {
             Vec3d p = where.get(target);
             world.spawnParticles(ParticleTypes.DAMAGE_INDICATOR, p.x, p.y, p.z, 3, 0.1, 0.1, 0.1, 0.05);
         });
+    }
+
+    private static byte weaponIndex(WeaponDef d) {
+        for (int i = 0; i < WeaponDef.ALL.length; i++) if (WeaponDef.ALL[i] == d) return (byte) i;
+        return 0;
+    }
+
+    /** tracers / holes / casings for everyone who can see it (the shooter too: its tracers and holes come from here) */
+    private static void broadcast(ServerPlayerEntity player, FxPayload fx) {
+        for (ServerPlayerEntity p : PlayerLookup.around(player.getServerWorld(), player.getPos(), 128)) {
+            ServerPlayNetworking.send(p, fx);
+        }
     }
 
     /** uniform direction inside a cone around aim */
