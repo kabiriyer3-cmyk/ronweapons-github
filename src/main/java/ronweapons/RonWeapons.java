@@ -108,7 +108,8 @@ public final class RonWeapons implements ModInitializer {
             return;
         }
         lastShot.put(player.getUuid(), now);
-        if (!player.getAbilities().creativeMode) stack.setDamage(stack.getDamage() + 1);
+        // rounds are spent in creative too: otherwise the client counter resyncs back to a full mag
+        stack.setDamage(Math.min(MAG_SIZE, stack.getDamage() + 1));
         world.playSound(null, player.getX(), player.getY(), player.getZ(), SND_FIRE, SoundCategory.PLAYERS, 2.0f,
                 0.95f + world.random.nextFloat() * 0.1f);
 

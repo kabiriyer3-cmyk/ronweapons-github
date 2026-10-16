@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "HeldItemRendererMixin",
+    "ItemRendererMixin",
     "MinecraftClientMixin"
   ],
   "injectors": { "defaultRequire": 1 }

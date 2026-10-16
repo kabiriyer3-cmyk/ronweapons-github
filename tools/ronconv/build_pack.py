@@ -125,17 +125,23 @@ def bind_data(mesh):
 def write_mesh(mesh, path, tex_for_material, rigid):
     for i, b in enumerate(mesh.bones):
         assert b.parent < i, "parents must precede children"
-    locs, inv = bind_data(mesh)
     per_point = {}
     for p, b, w in mesh.weights:
         per_point.setdefault(p, []).append((w, b))
     out = bytearray(b"RONM" + struct.pack(">i", 1))
-    out += struct.pack(">i", len(mesh.bones))
-    for i, b in enumerate(mesh.bones):
-        pos, q = locs[i]
-        out += utf(b.name) + struct.pack(">i", b.parent)
-        out += struct.pack(">3f", *pos) + struct.pack(">4f", *q)
-        out += struct.pack(">16f", *inv[i].T.flatten())  # column-major for JOML
+    if not mesh.bones:
+        # static mesh (e.g. the magazine): one identity root bone so the renderer always has bone 0
+        out += struct.pack(">i", 1) + utf("root") + struct.pack(">i", -1)
+        out += struct.pack(">3f", 0, 0, 0) + struct.pack(">4f", 0, 0, 0, 1)
+        out += struct.pack(">16f", *np.eye(4).T.flatten())
+    else:
+        locs, inv = bind_data(mesh)
+        out += struct.pack(">i", len(mesh.bones))
+        for i, b in enumerate(mesh.bones):
+            pos, q = locs[i]
+            out += utf(b.name) + struct.pack(">i", b.parent)
+            out += struct.pack(">3f", *pos) + struct.pack(">4f", *q)
+            out += struct.pack(">16f", *inv[i].T.flatten())  # column-major for JOML
     out += struct.pack(">i", len(mesh.materials))
     for m in mesh.materials:
         out += utf(m) + utf(tex_for_material(m))

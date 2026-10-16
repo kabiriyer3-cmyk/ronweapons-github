@@ -158,25 +158,43 @@ public final class RonMesh {
 
     /** Emits the last skinned result. Entity layers draw quads, so each triangle is a quad with a repeated corner. */
     public void emit(MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
+        emit(outPos, outNrm, entry, consumers, light, OverlayTexture.DEFAULT_UV);
+    }
+
+    /** Rigidly transformed copy {positions, normals} of the bind pose, for static rendering (inventory icon etc.). */
+    public float[][] bake(Matrix4f m) {
+        Matrix4f[] all = new Matrix4f[parents.length];
+        for (int b = 0; b < all.length; b++) all[b] = new Matrix4f(m).mul(bindGlobal[b]).mul(invBind[b]);
+        float[] p = new float[vertexCount * 3], n = new float[vertexCount * 3];
+        float[] keepP = outPos.clone(), keepN = outNrm.clone();
+        skin(all);
+        System.arraycopy(outPos, 0, p, 0, p.length);
+        System.arraycopy(outNrm, 0, n, 0, n.length);
+        System.arraycopy(keepP, 0, outPos, 0, p.length);
+        System.arraycopy(keepN, 0, outNrm, 0, n.length);
+        return new float[][] {p, n};
+    }
+
+    public void emit(float[] p, float[] n, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light, int overlay) {
         Matrix4f pm = entry.getPositionMatrix();
         for (int s = 0; s < sectionIndices.length; s++) {
             VertexConsumer vc = consumers.getBuffer(RenderLayer.getEntityCutoutNoCull(textures[sectionMaterial[s]]));
             int[] idx = sectionIndices[s];
             for (int i = 0; i < idx.length; i += 3) {
-                corner(vc, pm, entry, idx[i], light);
-                corner(vc, pm, entry, idx[i + 1], light);
-                corner(vc, pm, entry, idx[i + 2], light);
-                corner(vc, pm, entry, idx[i + 2], light);
+                corner(vc, pm, entry, p, n, idx[i], light, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 1], light, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 2], light, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 2], light, overlay);
             }
         }
     }
 
-    private void corner(VertexConsumer vc, Matrix4f pm, MatrixStack.Entry entry, int v, int light) {
-        vc.vertex(pm, outPos[v * 3], outPos[v * 3 + 1], outPos[v * 3 + 2])
+    private void corner(VertexConsumer vc, Matrix4f pm, MatrixStack.Entry entry, float[] p, float[] n, int v, int light, int overlay) {
+        vc.vertex(pm, p[v * 3], p[v * 3 + 1], p[v * 3 + 2])
                 .color(255, 255, 255, 255)
                 .texture(uv[v * 2], uv[v * 2 + 1])
-                .overlay(OverlayTexture.DEFAULT_UV)
+                .overlay(overlay)
                 .light(light)
-                .normal(entry, outNrm[v * 3], outNrm[v * 3 + 1], outNrm[v * 3 + 2]);
+                .normal(entry, n[v * 3], n[v * 3 + 1], n[v * 3 + 2]);
     }
 }
