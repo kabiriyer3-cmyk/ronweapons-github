@@ -29,6 +29,12 @@ ARMS_MESH = "ReadyOrNot/Content/ReadyOrNot/Character/SWAT/SWAT_Officer/SK_Char_S
 A = "ReadyOrNot/Content/ReadyOrNot/Animations"
 M4FP, M4REV = f"{A}/FP/M4A1", f"{A}/Revised/FirstPerson/Weapons/M4_Rifle"
 G19FP, PYFP, PYREV = f"{A}/FP/G19", f"{A}/FP/PYTHON", f"{A}/Revised/FirstPerson/Weapons/Python"
+M590A, M590W = f"{A}/FP/M590/base_male", f"{A}/FP/M590/ron_m590"
+ATT = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Attachments"
+
+# Optics: mesh on a gun socket. The ADS eye goes through the centre of the RoN reticle plane ("Optic_Picture" material);
+# our own reticle texture is drawn there (dot / holo ring), lens glass and invisible helpers are skipped.
+# ids must match WeaponDef.optics in the mod. eye_y None = keep the hip-fire eye distance (pistols).
 
 # Clip spec: path, or (path, "first"|"last") to take a single pose from a clip.
 # Every clip is absolute (CUE4Parse bakes RoN additives onto the ref pose).
@@ -42,6 +48,13 @@ WEAPONS = {
             {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SM_Rif_M4A1_new_mag_static",
              "file": "mag", "sockets": ["mag_01_socket", "mag_02_socket"]},
         ],
+        "optics": [
+            {"id": "exps3", "mesh": f"{ATT}/Optic_EPXS3/Holosight_EXPS3", "socket": "EXPS3_Socket", "style": "holo", "hide": ["Weapon_1P_M4A1_CARRYHANDLE_INST"]},
+            {"id": "m5b", "mesh": f"{ATT}/Optic_M5B/sk_optic_m5", "socket": "M5B_Socket", "style": "dot", "hide": ["Weapon_1P_M4A1_CARRYHANDLE_INST"]},
+            {"id": "t2", "mesh": f"{ATT}/Optic_MicroT2/SK_MicroT2_TallMount", "socket": "MicroT2Raised_Socket", "style": "dot", "hide": ["Weapon_1P_M4A1_CARRYHANDLE_INST"]},
+        ],
+        "suppressor": {"mesh": f"{ATT}/Suppressor_SOCOM338/sk_suppressor_socom338", "socket": "socom338_socket"},
+        "tp": {"back": 0.30},
         "actions": {
             "draw":         (f"{M4FP}/arms/fp_m4a1_add_draw", None),
             "idle":         (f"{M4FP}/arms/fp_gen_idle_01", f"{M4FP}/weapon/fp_m4a1_idle_pose_weapon"),
@@ -67,6 +80,12 @@ WEAPONS = {
             {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/G19/Meshes/g19_fmj_bullets_static",
              "file": "rounds", "sockets": ["tag_mag_01_bullets_socket", "tag_mag_02_bullets_socket"]},
         ],
+        "optics": [
+            {"id": "rmr", "mesh": f"{ATT}/Optic_RMR/sk_optic_rmr_pistol", "socket": "RMRPistol_Socket", "style": "dot"},
+            {"id": "sro", "mesh": f"{ATT}/Optic_SRO/sk_optic_sro_glock", "socket": "SROPistol_Socket", "style": "dot"},
+        ],
+        "suppressor": {"mesh": f"{ATT}/Mesh/Pistol_SuppressorSmall", "socket": "supressor_socket"},
+        "tp": {"back": 0.0},
         "actions": {
             "draw":         (f"{G19FP}/arms/fp_g19_add_draw", None),
             # fp_g19_idle_high_ready points the gun at the sky and the real idle is ACL-only: frame 0 of the tac reload is
@@ -90,6 +109,10 @@ WEAPONS = {
             {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/Python/Meshes/SM_Python_FMJ_Bullets_Static",
              "file": "rounds", "sockets": ["mag_01_bullets_socket"]},
         ],
+        "optics": [
+            {"id": "t2", "mesh": f"{ATT}/Optic_MicroT2/V2/SK_T2_shortmount", "socket": "PythonT2_socket", "style": "dot"},
+        ],
+        "tp": {"back": 0.0},
         "actions": {
             # weapon idle is ACL-only: frame 0 of the cylinder check has the cylinder shut and the speedloader parked
             "idle":         (f"{PYREV}/arms/fp_python_idle_pose", (f"{PYFP}/ron_python_fix/fp_python_add_mag_check_weapon", "first")),
@@ -99,7 +122,100 @@ WEAPONS = {
             "magcheck":     (f"{PYFP}/base_male/fp_python_add_mag_check", f"{PYFP}/ron_python_fix/fp_python_add_mag_check_weapon"),
         },
     },
+    "m590": {
+        "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M590/Meshes/SK_Shotgun_M590_Assault",
+        # front blade top z 5.27 (y -63.5), ghost ring at y -3.3 around z 5.3; eye 9 cm behind the ring
+        "ads_eye": [0.0, 6.0, 5.3],
+        "attachments": [
+            # the shell the left hand carries; parked inside the stock (y > 3.5) between inserts -> hidden there
+            {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M590/Meshes/Shells_Scaled/m590_buckshot_static_shell",
+             "file": "shell", "sockets": ["tag_bullet_socket"], "hide_y_above": 3.5},
+        ],
+        "tp": {"back": 0.35},
+        "actions": {
+            # weapon idle / draw clips are ACL-only: frame 0 of the fire clip is the rest pose (pump forward, shell in the tube)
+            "draw":               (f"{M590A}/fp_M590_add_draw", None),
+            "idle":               (f"{M590A}/fp_m590_idle_pose", (f"{M590W}/fp_m590_add_fire_weapon", "first")),
+            "fire":               (f"{M590A}/fp_m590_add_fire", f"{M590W}/fp_m590_add_fire_weapon"),
+            "fire_ads":           (f"{M590A}/fp_m590_add_fire_ads", f"{M590W}/fp_m590_add_fire_weapon"),
+            "reload_start":       (f"{M590A}/fp_M590_add_reload_start_A", f"{M590W}/fp_M590_add_reload_start_A_weapon"),
+            "reload_start_empty": (f"{M590A}/fp_M590_add_reload_start_empty_A", f"{M590W}/fp_M590_add_reload_start_empty_A_weapon"),
+            "reload_loop":        (f"{M590A}/fp_M590_add_reload_loop_A", f"{M590W}/fp_M590_add_reload_loop_A_weapon"),
+            "reload_end":         (f"{M590A}/fp_M590_add_reload_end_A", f"{M590W}/fp_M590_add_reload_end_A_weapon"),
+            "magcheck":           (f"{M590A}/fp_M590_add_magcheck", f"{M590W}/fp_M590_add_magcheck_weapon"),
+        },
+    },
 }
+
+RETICLE_RGB = (255, 36, 24)
+SKIP_MATERIAL = ("glass", "invisible")
+
+
+def socket_matrix(gun, name):
+    """bind global of a gun socket, relative to J_Gun (bone 0)"""
+    _, inv = bind_data(gun)
+    G = [np.linalg.inv(i) for i in inv]
+    for i, b in enumerate(gun.bones):
+        if b.name.lower() == name.lower():
+            return np.linalg.inv(G[0]) @ G[i]
+    return None
+
+
+def prepare_optic(mesh, S, style, eye_dist_cm, png_path):
+    """Marks lens / helper materials #skip and the reticle plane #reticle (planar UVs, centre = (0.5, 0.5)).
+    Returns the reticle centre in gun space (cm) or None. The reticle texture is our own drawing, sized in angle at the eye."""
+    pts = np.array(mesh.points, dtype=np.float64)
+    wp = np.array(mesh.wedge_point)
+    fm = np.array(mesh.face_mat)
+    F = np.array(mesh.faces)
+    uv = np.array(mesh.wedge_uv, dtype=np.float64).copy()
+    centre = None
+    names = list(mesh.materials)
+    for mi, mn in enumerate(names):
+        low = mn.lower()
+        if any(k in low for k in SKIP_MATERIAL):
+            names[mi] = "#skip " + mn
+        elif "picture" in low and centre is None:
+            wedges = np.unique(F[fm == mi].flatten())
+            if not len(wedges):
+                continue
+            q = pts[wp[wedges]]
+            lo, hi = q.min(0), q.max(0)
+            c = (lo + hi) / 2
+            ax = np.argsort(hi - lo)[::-1][:2]          # the two in-plane axes
+            size = float((hi - lo)[ax].max()) or 1.0
+            for w in wedges:
+                p = pts[wp[w]]
+                uv[w] = (0.5 + (p[ax[0]] - c[ax[0]]) / size, 0.5 - (p[ax[1]] - c[ax[1]]) / size)
+            draw_reticle(png_path, style, size, eye_dist_cm)
+            centre = (S @ np.append(c, 1.0))[:3]
+            names[mi] = "#reticle " + mn
+        elif "picture" in low:
+            names[mi] = "#skip " + mn
+    mesh.materials = names
+    mesh.wedge_uv = uv
+    return centre
+
+
+def draw_reticle(path, style, size_cm, dist_cm, res=512):
+    """dot: 1 MRAD-ish dot; holo: 65 MOA ring + 1 MOA-ish dot (exaggerated a bit so it reads at Minecraft resolutions)"""
+    px = res / size_cm
+    deg = lambda a: dist_cm * np.tan(np.radians(a)) * px     # angle -> pixels on the plane
+    y, x = np.mgrid[0:res, 0:res]
+    r = np.hypot(x - res / 2 + 0.5, y - res / 2 + 0.5)
+    def disc(radius):
+        return np.clip(radius + 0.75 - r, 0, 1.5) / 1.5
+    a = disc(max(1.6, deg(0.09)))
+    if style == "holo":
+        rr, w = deg(0.54), max(1.2, deg(0.035))
+        a = np.maximum(a, np.clip(w + 0.75 - np.abs(r - rr), 0, 1.5) / 1.5)
+    glow = np.exp(-(r / max(2.0, deg(0.16))) ** 2) * 0.35
+    a = np.clip(np.maximum(a, glow), 0, 1)
+    im = np.zeros((res, res, 4), np.uint8)
+    im[..., 0], im[..., 1], im[..., 2] = RETICLE_RGB
+    im[..., 3] = (a * 255).astype(np.uint8)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    Image.fromarray(im, "RGBA").save(path, optimize=True)
 
 
 def utf(s):
@@ -141,9 +257,13 @@ def material_texture(mat):
 
 class Textures:
     def __init__(self, pack_dir):
-        self.pack_dir, self.written = pack_dir, {}
+        self.pack_dir, self.written, self.reticles = pack_dir, {}, {}
 
     def for_material(self, mat, folder):
+        if mat.startswith("#skip"):
+            return f"{NS}:textures/ron/skip.png"
+        if mat.startswith("#reticle"):
+            return self.reticles[folder]
         src = material_texture(mat)
         if not src:
             print(f"  ! no base colour for material {mat}, using a grey placeholder")
@@ -277,6 +397,9 @@ def main():
     json.dump({"pack": {"pack_format": 34, "description": "RoN Weapons: PRIVATE, made from your own Ready or Not install. Do not share."}},
               open(os.path.join(pack_dir, "pack.mcmeta"), "w"), indent=2)
     tex = Textures(pack_dir)
+    skip_png = os.path.join(pack_dir, "assets", NS, "textures", "ron", "skip.png")
+    os.makedirs(os.path.dirname(skip_png), exist_ok=True)
+    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(skip_png)
     snd = os.path.join(OUT, "sound_pack")
     all_cues = json.load(open(os.path.join(snd, "cues.json"))) if os.path.isdir(snd) else {}
     if all_cues:
@@ -306,7 +429,46 @@ def main():
                 print(f"  ! {att['file']}: {att['mesh']} not exported")
                 continue
             print(f"   {att['file']}:", write_mesh(read_psk(p), os.path.join(base, att["file"] + ".ronmesh"), tf, rigid=True))
-            meta["attachments"].append({"mesh": att["file"], "sockets": att["sockets"]})
+            entry = {"mesh": att["file"], "sockets": att["sockets"]}
+            if "hide_y_above" in att:
+                entry["hide_y_above"] = att["hide_y_above"]
+            meta["attachments"].append(entry)
+        if w.get("optics"):
+            meta["optics"] = []
+        for op in w.get("optics", []):
+            p = exported(op["mesh"], ".psk")
+            S = socket_matrix(gun, op["socket"])
+            if not p or S is None:
+                print(f"  ! optic {op['id']}: mesh or socket {op['socket']} missing")
+                continue
+            m = read_psk(p)
+            name = f"optic_{op['id']}"
+            folder = f"{wid}_{op['id']}"
+            png = os.path.join(pack_dir, "assets", NS, "textures", "ron", folder, "reticle.png")
+            tex.reticles[folder] = f"{NS}:textures/ron/{folder}/reticle.png"
+            eye_y = w["ads_eye"][1]
+            pic_y = (S @ np.array([0, 0, 0, 1.0]))[1]
+            c = prepare_optic(m, S, op["style"], (eye_y if eye_y is not None else 30.0) - pic_y, png)
+            if c is None:
+                print(f"  ! optic {op['id']}: no reticle plane, iron-sight eye kept")
+                eye = w["ads_eye"]
+            else:
+                eye = [round(float(c[0]), 3), eye_y, round(float(c[2]), 3)]
+            print(f"   optic {op['id']:6s}:", write_mesh(m, os.path.join(base, name + ".ronmesh"), lambda mm, f=folder: tex.for_material(mm, f), rigid=True),
+                  "eye", eye)
+            meta["optics"].append({"id": op["id"], "mesh": name, "socket": op["socket"], "eye": eye, "hide": op.get("hide", [])})
+        sp = w.get("suppressor")
+        if sp:
+            p = exported(sp["mesh"], ".psk")
+            if p:
+                m = read_psk(p)
+                m.materials = ["#skip " + x if any(k in x.lower() for k in SKIP_MATERIAL) else x for x in m.materials]
+                print("   suppressor:", write_mesh(m, os.path.join(base, "suppressor.ronmesh"), tf, rigid=True))
+                meta["suppressor"] = {"mesh": "suppressor", "socket": sp["socket"]}
+            else:
+                print(f"  ! suppressor {sp['mesh']} not exported")
+        if "tp" in w:
+            meta["tp"] = w["tp"]
         if wid in all_cues:
             meta["cues"] = all_cues[wid]
         json.dump(meta, open(os.path.join(base, "rig.json"), "w"))

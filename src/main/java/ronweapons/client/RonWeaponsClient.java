@@ -28,7 +28,7 @@ import ronweapons.net.FirePayload;
 public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
 
-    private static KeyBinding reloadKey, selectKey, magKey;
+    private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey;
     private static boolean autoMode = true, wasAttack, wasHolding;
     private static String heldId;
     private static int heldSlot = -1, localAmmo = -1;
@@ -62,6 +62,12 @@ public final class RonWeaponsClient implements ClientModInitializer {
         reloadKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.reload", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.ronweapons"));
         selectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.fireselect", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_B, "category.ronweapons"));
         magKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.magcheck", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, "category.ronweapons"));
+        suppKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.suppressor", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_N, "category.ronweapons"));
+        opticKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.optic", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_M, "category.ronweapons"));
+        ANIM.onShellInserted(() -> {
+            WeaponDef d = heldDef();
+            if (d != null) localAmmo = Math.min(d.magSize(), localAmmo + 1);
+        });
 
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
             @Override
@@ -93,6 +99,8 @@ public final class RonWeaponsClient implements ClientModInitializer {
             while (reloadKey.wasPressed()) { }
             while (selectKey.wasPressed()) { }
             while (magKey.wasPressed()) { }
+            while (suppKey.wasPressed()) { }
+            while (opticKey.wasPressed()) { }
             wasAttack = false;
             return;
         }
@@ -102,7 +110,8 @@ public final class RonWeaponsClient implements ClientModInitializer {
         boolean auto = def.auto() && autoMode;
         long now = System.nanoTime();
         int serverAmmo = RonWeapons.ammo(stack);
-        if (localAmmo < 0 || serverAmmo < localAmmo
+        boolean shells = def.shellReload() && ANIM.reloading(); // the animator counts inserted shells itself
+        if (localAmmo < 0 || (serverAmmo < localAmmo && !shells)
                 || (serverAmmo > localAmmo && now - lastShotNs > 400_000_000L && !ANIM.reloading())) {
             localAmmo = serverAmmo;
         }
@@ -112,7 +121,8 @@ public final class RonWeaponsClient implements ClientModInitializer {
         while (reloadKey.wasPressed()) {
             if (localAmmo < def.magSize() && ANIM.canReload()) {
                 boolean emptyMag = localAmmo <= 0;
-                ANIM.reload(emptyMag);
+                if (def.shellReload()) ANIM.reloadShells(emptyMag, def.magSize() - localAmmo);
+                else ANIM.reload(emptyMag);
                 if (!ANIM.hasCues(ANIM.current())) player.playSound(snd.reload(), 0.8f, 1.0f);
                 ClientPlayNetworking.send(new ActionPayload(emptyMag ? ActionPayload.RELOAD_EMPTY : ActionPayload.RELOAD_TAC));
             }
@@ -132,7 +142,30 @@ public final class RonWeaponsClient implements ClientModInitializer {
             }
         }
 
+        while (suppKey.wasPressed()) {
+            if (def.suppressible() && ANIM.canAct()) {
+                boolean on = !RonWeapons.suppressed(stack);
+                ClientPlayNetworking.send(new ActionPayload(ActionPayload.TOGGLE_SUPPRESSOR));
+                player.playSound(RonWeapons.SND_SELECT, 0.4f, on ? 0.8f : 1.2f);
+                player.sendMessage(Text.translatable(on ? "ronweapons.suppressor.on" : "ronweapons.suppressor.off", def.name()), true);
+            }
+        }
+        while (opticKey.wasPressed()) {
+            if (def.opticCount() > 1 && ANIM.canAct()) {
+                int next = (RonWeapons.optic(stack) + 1) % def.opticCount();
+                ClientPlayNetworking.send(new ActionPayload(ActionPayload.CYCLE_OPTIC));
+                player.playSound(RonWeapons.SND_SELECT, 0.4f, 0.9f);
+                player.sendMessage(Text.translatable("ronweapons.optic", def.name(),
+                        Text.translatable("ronweapons.optic." + def.optics()[next])), true);
+            }
+        }
+
         boolean attack = mc.currentScreen == null && mc.options.attackKey.isPressed();
+        // shotguns: the trigger stops a shell reload after the shell in hand
+        if (attack && !wasAttack && def.shellReload() && ANIM.shellReloading()) {
+            ANIM.cancelShells();
+            ClientPlayNetworking.send(new ActionPayload(ActionPayload.RELOAD_CANCEL));
+        }
         if (attack && ANIM.canFire()) {
             boolean trigger = auto ? now >= nextShotNs : (!wasAttack && now >= nextShotNs);
             if (trigger) {
@@ -141,9 +174,11 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     localAmmo--;
                     lastShotNs = now;
                     nextShotNs = now + def.clientIntervalNs();
-                    ANIM.fire(localAmmo == 0);
+                    ANIM.fire(localAmmo == 0, aiming());
                     FirstPersonRenderer.kick(def.viewKick());
-                    playLocal(RonWeapons.id(def.id() + ".fire_1p"), 1.0f, 0.97f + player.getRandom().nextFloat() * 0.06f);
+                    boolean supp = RonWeapons.suppressed(stack);
+                    playLocal(RonWeapons.id(def.id() + (supp ? ".fire_1p_supp" : ".fire_1p")), supp ? 0.8f : 1.0f,
+                            0.97f + player.getRandom().nextFloat() * 0.06f);
                     float kick = def.recoilPitch() * (aiming() ? 0.65f : 1f);
                     player.setPitch(player.getPitch() - kick);
                     player.setYaw(player.getYaw() + (player.getRandom().nextFloat() - 0.5f) * 0.4f);

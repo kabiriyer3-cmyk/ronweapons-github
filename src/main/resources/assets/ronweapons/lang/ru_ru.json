@@ -15,5 +15,21 @@
   "subtitles.ronweapons.g19.fire": "Выстрел Glock",
   "subtitles.ronweapons.python.fire": "Выстрел револьвера",
   "subtitles.ronweapons.g19.reload": "Перезарядка Glock",
-  "subtitles.ronweapons.python.reload": "Перезарядка револьвера"
+  "subtitles.ronweapons.python.reload": "Перезарядка револьвера",
+  "item.ronweapons.m590": "Mossberg 590A1",
+  "subtitles.ronweapons.m590.fire": "Выстрел дробовика",
+  "subtitles.ronweapons.m590.reload": "Зарядка дробовика",
+  "subtitles.ronweapons.fire_supp": "Выстрел с глушителем",
+  "key.ronweapons.suppressor": "Глушитель вкл/выкл",
+  "key.ronweapons.optic": "Сменить прицел",
+  "ronweapons.suppressor.on": "%s: глушитель НАДЕТ",
+  "ronweapons.suppressor.off": "%s: глушитель СНЯТ",
+  "ronweapons.optic": "%s: %s",
+  "ronweapons.optic.iron": "механика",
+  "ronweapons.optic.exps3": "EOTech EXPS3 (голограф)",
+  "ronweapons.optic.m5b": "Aimpoint M5B",
+  "ronweapons.optic.t2": "Aimpoint Micro T-2",
+  "ronweapons.optic.hs510c": "Holosun 510C",
+  "ronweapons.optic.rmr": "Trijicon RMR",
+  "ronweapons.optic.sro": "Trijicon SRO"
 }

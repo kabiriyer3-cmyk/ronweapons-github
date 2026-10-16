@@ -7,6 +7,10 @@ import net.minecraft.text.Text;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import java.util.HashMap;
+import java.util.Map;
+import net.minecraft.item.ItemStack;
+import ronweapons.RonWeapons;
 import ronweapons.WeaponDef;
 
 /**
@@ -27,8 +31,9 @@ public final class FirstPersonRenderer {
     private static float[] alp, alr, wlp, wlr, tap, tar, twp, twr;
     private static Matrix4f[] armsG, gunG, armsSkin, gunSkin;
     private static final Matrix4f[] oneSkin = {new Matrix4f()};
-    private static final Vector3f adsT = new Vector3f();
-    private static final Quaternionf adsQ = new Quaternionf();
+    /** ADS correction per optic id ("iron" = iron sights): translation + rotation from the idle hip pose */
+    private record Ads(Vector3f t, Quaternionf q) {}
+    private static final Map<String, Ads> adsByOptic = new HashMap<>();
     private static long lastNs;
     private static float ads, kick, kickScale;
     private static String warnedFor;
@@ -67,6 +72,11 @@ public final class FirstPersonRenderer {
 
         Matrix4f view = viewOf(rig);
         Matrix4f attach = new Matrix4f(view).mul(armsG[rig.attachBone]);
+        ItemStack stack = mc.player.getMainHandStack();
+        GunRig.Optic optic = rig.optics.get(def.optics()[RonWeapons.optic(stack)]);
+        Ads adsD = adsByOptic.getOrDefault(optic == null ? "iron" : optic.id(), adsByOptic.get("iron"));
+        Vector3f adsT = adsD.t();
+        Quaternionf adsQ = adsD.q();
 
         boolean wantAds = RonWeaponsClient.aiming() && !anim.reloading();
         ads += (wantAds ? 1 : -1) * dt / ADS_TIME;
@@ -93,9 +103,19 @@ public final class FirstPersonRenderer {
         rig.arms.skin(armsSkin);
         rig.arms.emit(entry, consumers, light);
         rig.gun.skin(gunSkin);
-        rig.gun.emit(entry, consumers, light);
+        rig.gun.emit(entry, consumers, light, optic == null ? null : optic.hideGun());
         renderAttachments(rig, attach, entry, consumers, light);
+        if (optic != null) renderOnSocket(optic.mesh(), optic.socket(), attach, entry, consumers, light);
+        if (rig.suppressor != null && RonWeapons.suppressed(stack)) {
+            renderOnSocket(rig.suppressor.mesh(), rig.suppressor.socket(), attach, entry, consumers, light);
+        }
         return true;
+    }
+
+    /** Optics / suppressors: skeletal attachment meshes placed rigidly in socket space, like UE attaches the component. */
+    private static void renderOnSocket(RonMesh mesh, int socket, Matrix4f attach, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
+        mesh.skinRigid(new Matrix4f(attach).mul(gunG[socket]));
+        mesh.emit(entry, consumers, light);
     }
 
     /** Magazines / rounds are separate static meshes in RoN. Later sockets are skipped while they sit on the first. */
@@ -106,6 +126,7 @@ public final class FirstPersonRenderer {
             gunG[s[0]].getTranslation(p0);
             for (int i = 0; i < s.length; i++) {
                 if (i > 0 && gunG[s[i]].getTranslation(pi).distance(p0) <= 0.5f) continue;
+                if (!Float.isNaN(at.hideAboveY()) && gunG[s[i]].getTranslation(pi).y > at.hideAboveY()) continue;
                 oneSkin[0].set(attach).mul(gunG[s[i]]).mul(at.mesh().invBind[0]);
                 at.mesh().skin(oneSkin);
                 at.mesh().emit(entry, consumers, light);
@@ -134,22 +155,30 @@ public final class FirstPersonRenderer {
         for (int i = 0; i < na; i++) armsSkin[i] = new Matrix4f();
         for (int i = 0; i < ng; i++) gunSkin[i] = new Matrix4f();
 
-        // ADS correction from the idle pose at t = 0
+        // ADS corrections from the idle pose at t = 0: iron sights + every optic of this rig
         resetToBind(rig);
         GunAnimator.sample(rig, "idle", 0f, true, false, alp, alr, wlp, wlr);
         rig.arms.globals(alp, alr, armsG);
         rig.gun.globals(wlp, wlr, gunG);
         Matrix4f hip = viewOf(rig).mul(armsG[rig.attachBone]).mul(gunG[0]);
-        float ex = rig.adsEye[0], ey = rig.adsEye[1], ez = rig.adsEye[2];
-        if (rig.adsKeepDistance) {
+        adsByOptic.clear();
+        adsByOptic.put("iron", adsFor(hip, rig.adsEye, rig.adsKeepDistance));
+        for (GunRig.Optic o : rig.optics.values()) adsByOptic.put(o.id(), adsFor(hip, o.eye(), o.keepDistance()));
+        ads = 0;
+        kick = 0;
+    }
+
+    private static Ads adsFor(Matrix4f hip, float[] eye, boolean keepDistance) {
+        float ex = eye[0], ey = eye[1], ez = eye[2];
+        if (keepDistance) {
             Vector3f cam = new Matrix4f(hip).invert().transformPosition(new Vector3f()); // camera in gun space, cm
             ey = Math.max(12f, cam.y);
         }
         Matrix4f aim = new Matrix4f(C).scale(0.01f).translate(-ex, -ey, -ez);
         Matrix4f d = aim.mul(new Matrix4f(hip).invert());
-        d.getTranslation(adsT);
-        d.getUnnormalizedRotation(adsQ).normalize();
-        ads = 0;
-        kick = 0;
+        Ads a = new Ads(new Vector3f(), new Quaternionf());
+        d.getTranslation(a.t());
+        d.getUnnormalizedRotation(a.q()).normalize();
+        return a;
     }
 }

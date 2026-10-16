@@ -31,8 +31,9 @@ import ronweapons.RonWeapons;
 public final class GunRig {
     static final Logger LOG = LoggerFactory.getLogger("ronweapons");
     static final String[] ACTIONS = {
-            "draw", "idle", "idle_empty", "walk", "run", "fire", "fire_last",
-            "reload_tac", "reload_empty", "magcheck", "select_auto", "select_semi"
+            "draw", "idle", "idle_empty", "walk", "run", "fire", "fire_last", "fire_ads",
+            "reload_tac", "reload_empty", "magcheck", "select_auto", "select_semi",
+            "reload_start", "reload_start_empty", "reload_loop", "reload_end"
     };
 
     /** One RoN action: an arms clip and (optionally) the matching weapon clip, mapped to mesh bones. */
@@ -51,9 +52,16 @@ public final class GunRig {
     }
 
     /** A static mesh RoN hangs on gun sockets (magazines, rounds). Later sockets are skipped when they sit on the first. */
-    public record Attachment(RonMesh mesh, int[] sockets) {}
+    /** hideAboveY: not drawn while the socket sits further back than this (gun space cm), e.g. a shell parked in the stock */
+    public record Attachment(RonMesh mesh, int[] sockets, float hideAboveY) {}
 
     public record Cue(float t, Identifier sound, float volume) {}
+
+    /** A swappable optic on a gun socket. eye: ADS eye in gun space (cm) on the reticle line; hideGun: gun materials it replaces. */
+    public record Optic(String id, RonMesh mesh, int socket, float[] eye, boolean keepDistance, boolean[] hideGun) {}
+
+    /** A muzzle device (suppressor) on a gun socket. */
+    public record Muzzle(RonMesh mesh, int socket) {}
 
     public final String id;
     public final RonMesh arms, gun;
@@ -68,6 +76,12 @@ public final class GunRig {
     public final Matrix4f cameraBindRot;
     /** sound cues per action: seconds into the clip -> sound event */
     public final Map<String, List<Cue>> cues = new HashMap<>();
+    public final Map<String, Optic> optics = new HashMap<>();
+    public Muzzle suppressor;
+    /** third person: how far (blocks) the gun sits back from the fist so the stock reaches the shoulder; yaw undoes the crossbow-pose inward angle */
+    public float tpBack, tpYaw = -17.2f;
+    /** third person: fist centre relative to the held-item frame (blocks); tweakable from rig.json "tp": {"offset": [x, y, z]} */
+    public final float[] tpOffset = {-1f / 16f, -2f / 16f, 0f};
 
     private static final Map<String, GunRig> RIGS = new HashMap<>();
     private static final Map<String, String> ERRORS = new HashMap<>();
@@ -110,14 +124,49 @@ public final class GunRig {
         if (o.has("attachments")) {
             for (JsonElement el : o.getAsJsonArray("attachments")) {
                 JsonObject at = el.getAsJsonObject();
-                addAttachment(rm, base + at.get("mesh").getAsString() + ".ronmesh", at.getAsJsonArray("sockets"));
+                addAttachment(rm, base + at.get("mesh").getAsString() + ".ronmesh", at.getAsJsonArray("sockets"),
+                        at.has("hide_y_above") ? at.get("hide_y_above").getAsFloat() : Float.NaN);
             }
         } else {
             // packs from before multi-weapon support: M4 magazine on its two sockets
             JsonArray s = new JsonArray();
             s.add("mag_01_socket");
             s.add("mag_02_socket");
-            addAttachment(rm, base + "mag.ronmesh", s);
+            addAttachment(rm, base + "mag.ronmesh", s, Float.NaN);
+        }
+        if (o.has("optics")) {
+            for (JsonElement el : o.getAsJsonArray("optics")) {
+                JsonObject op = el.getAsJsonObject();
+                Optional<Resource> r = rm.getResource(RonWeapons.id(base + op.get("mesh").getAsString() + ".ronmesh"));
+                int socket = gun.bone(op.get("socket").getAsString());
+                if (r.isEmpty() || socket < 0) continue;
+                float[] eye = adsEye.clone();
+                boolean keep = adsKeepDistance;
+                JsonArray e = op.getAsJsonArray("eye");
+                for (int k = 0; k < 3; k++) {
+                    if (e.get(k).isJsonNull()) { if (k == 1) keep = true; }
+                    else eye[k] = e.get(k).getAsFloat();
+                }
+                boolean[] hide = new boolean[gun.materialNames.length];
+                if (op.has("hide")) for (JsonElement h : op.getAsJsonArray("hide")) {
+                    int m = gun.material(h.getAsString());
+                    if (m >= 0) hide[m] = true;
+                }
+                String oid = op.get("id").getAsString();
+                optics.put(oid, new Optic(oid, RonMesh.read(r.get().getInputStream()), socket, eye, keep, hide));
+            }
+        }
+        if (o.has("suppressor")) {
+            JsonObject sp = o.getAsJsonObject("suppressor");
+            Optional<Resource> r = rm.getResource(RonWeapons.id(base + sp.get("mesh").getAsString() + ".ronmesh"));
+            int socket = gun.bone(sp.get("socket").getAsString());
+            if (r.isPresent() && socket >= 0) suppressor = new Muzzle(RonMesh.read(r.get().getInputStream()), socket);
+        }
+        if (o.has("tp")) {
+            JsonObject tp = o.getAsJsonObject("tp");
+            if (tp.has("back")) tpBack = tp.get("back").getAsFloat();
+            if (tp.has("yaw")) tpYaw = tp.get("yaw").getAsFloat();
+            if (tp.has("offset")) for (int k = 0; k < 3; k++) tpOffset[k] = tp.getAsJsonArray("offset").get(k).getAsFloat();
         }
         for (String a : ACTIONS) {
             RonClip ac = clip(rm, base + "anims/" + a + "_arms.ronanim");
@@ -130,12 +179,13 @@ public final class GunRig {
         muzzleBone = gun.bone("tag_muzzle");
         gunNoBlend = new boolean[gun.parents.length];
         for (int b = 0; b < gun.parents.length; b++) {
-            gunNoBlend[b] = gun.boneNames[b].toLowerCase(Locale.ROOT).startsWith("tag_mag_");
+            String n = gun.boneNames[b].toLowerCase(Locale.ROOT);
+            gunNoBlend[b] = n.startsWith("tag_mag_") || n.startsWith("tag_bullet"); // shotgun shell teleports hand -> tube
         }
         cameraBindRot = new Matrix4f(arms.bindGlobal[cameraBone]).setTranslation(0, 0, 0);
     }
 
-    private void addAttachment(ResourceManager rm, String path, JsonArray socketNames) throws IOException {
+    private void addAttachment(ResourceManager rm, String path, JsonArray socketNames, float hideAboveY) throws IOException {
         Optional<Resource> r = rm.getResource(RonWeapons.id(path));
         if (r.isEmpty()) return;
         List<Integer> idx = new ArrayList<>();
@@ -144,7 +194,7 @@ public final class GunRig {
             if (b >= 0) idx.add(b);
         }
         if (idx.isEmpty()) return;
-        attachments.add(new Attachment(RonMesh.read(r.get().getInputStream()), idx.stream().mapToInt(Integer::intValue).toArray()));
+        attachments.add(new Attachment(RonMesh.read(r.get().getInputStream()), idx.stream().mapToInt(Integer::intValue).toArray(), hideAboveY));
     }
 
     private static RonMesh arms(ResourceManager rm, String base) throws IOException {
@@ -183,8 +233,8 @@ public final class GunRig {
         try {
             rig = new GunRig(rm, id);
             ERRORS.remove(id);
-            LOG.info("RoN rig {} loaded: gun {} verts, {} attachments, {} actions",
-                    id, rig.gun.vertexCount, rig.attachments.size(), rig.actions.size());
+            LOG.info("RoN rig {} loaded: gun {} verts, {} attachments, {} optics, suppressor {}, {} actions",
+                    id, rig.gun.vertexCount, rig.attachments.size(), rig.optics.size(), rig.suppressor != null, rig.actions.size());
         } catch (Exception e) {
             ERRORS.put(id, e.getMessage());
             LOG.warn("RoN rig {} not available: {}", id, e.getMessage());

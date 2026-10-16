@@ -1,6 +1,8 @@
 package ronweapons.client;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import net.minecraft.client.MinecraftClient;
@@ -14,26 +16,37 @@ import ronweapons.RonWeapons;
 import ronweapons.WeaponDef;
 
 /**
- * The RoN gun (bind pose + magazine / rounds) as the item model in the inventory, hotbar, item frames and on the ground.
- * Other contexts (third person, head) keep the flat icon; with no private pack everything falls back to it.
- * Item space here: origin at the slot / item centre, X right, Y up, viewer on +Z.
+ * The RoN gun (bind pose + magazine / rounds + mounted optic / suppressor) as the item model: inventory, hotbar,
+ * item frames, on the ground and in the hands of players seen from outside. With no private pack everything falls back to the icon.
  */
 public final class ItemModelRenderer {
     /** psk -> item axes: muzzle (-Y) to +X, up (Z) to +Y, the gun's right side (-X) faces the viewer. */
     private static final Matrix4f AXES = new Matrix4f(0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1);
+    /**
+     * Third person: HeldItemFeatureRenderer leaves us in a frame at the fist that looks like camera space
+     * (X right, Y up along the arm's front, -Z where the arm points), so psk maps like first person: x = -x, y = z, z = y.
+     */
+    private static final Matrix4f TP_AXES = new Matrix4f(-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1).scale(0.01f);
 
-    private record Baked(GunRig rig, float[][] gun, float[][][] parts, RonMesh[] partMeshes) {}
+    private record Part(RonMesh mesh, float[][] pn, boolean[] hide) {}
+    private record Baked(GunRig rig, List<Part> parts) {}
 
     private static final Map<String, Baked> CACHE = new HashMap<>();
 
-    public static boolean render(ItemStack stack, ModelTransformationMode mode, MatrixStack matrices, VertexConsumerProvider consumers, int light, int overlay) {
-        if (mode != ModelTransformationMode.GUI && mode != ModelTransformationMode.GROUND && mode != ModelTransformationMode.FIXED) return false;
+    public static boolean render(ItemStack stack, ModelTransformationMode mode, boolean leftHanded, MatrixStack matrices,
+                                 VertexConsumerProvider consumers, int light, int overlay) {
+        boolean tp = mode == ModelTransformationMode.THIRD_PERSON_RIGHT_HAND || mode == ModelTransformationMode.THIRD_PERSON_LEFT_HAND;
+        if (!tp && mode != ModelTransformationMode.GUI && mode != ModelTransformationMode.GROUND && mode != ModelTransformationMode.FIXED) return false;
         WeaponDef def = RonWeapons.def(stack);
         if (def == null) return false;
         GunRig rig = GunRig.get(MinecraftClient.getInstance().getResourceManager(), def.id());
         if (rig == null) return false;
-        Baked b = CACHE.get(def.id());
-        if (b == null || b.rig() != rig) CACHE.put(def.id(), b = bake(rig));
+        String opticId = def.optics()[RonWeapons.optic(stack)];
+        GunRig.Optic optic = rig.optics.get(opticId);
+        boolean supp = RonWeapons.suppressed(stack) && rig.suppressor != null;
+        String key = def.id() + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp;
+        Baked b = CACHE.get(key);
+        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp));
 
         matrices.push();
         switch (mode) {
@@ -50,39 +63,47 @@ public final class ItemModelRenderer {
                 matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180f));
                 matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(30f));
             }
-            default -> { }
+            default -> {
+                // fist centre is 1 px left and 2 px below the frame origin; undo the crossbow pose's inward yaw; slide back to the shoulder
+                matrices.translate(leftHanded ? -rig.tpOffset[0] : rig.tpOffset[0], rig.tpOffset[1], rig.tpOffset[2]);
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(leftHanded ? -rig.tpYaw : rig.tpYaw));
+                matrices.translate(0f, 0f, rig.tpBack);
+            }
         }
         MatrixStack.Entry e = matrices.peek();
-        rig.gun.emit(b.gun()[0], b.gun()[1], e, consumers, light, overlay);
-        for (int i = 0; i < b.parts().length; i++) b.partMeshes()[i].emit(b.parts()[i][0], b.parts()[i][1], e, consumers, light, overlay);
+        for (Part p : b.parts()) p.mesh().emit(p.pn()[0], p.pn()[1], e, consumers, light, overlay, p.hide());
         matrices.pop();
         return true;
     }
 
-    /** Bakes once per rig and fits the gun + first socket of each attachment into one item unit. */
-    private static Baked bake(GunRig rig) {
-        int n = rig.attachments.size();
-        Matrix4f[] partBase = new Matrix4f[n];
-        float[][] gun = rig.gun.bake(AXES);
-        float[][][] parts = new float[n][][];
-        for (int i = 0; i < n; i++) {
-            GunRig.Attachment at = rig.attachments.get(i);
-            partBase[i] = rig.gun.bindGlobal[at.sockets()[0]];
-            parts[i] = at.mesh().bake(new Matrix4f(AXES).mul(partBase[i]));
+    /** Bakes once per rig + attachment state. Icons fit the whole silhouette into one item unit; third person keeps real size. */
+    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp) {
+        List<RonMesh> meshes = new ArrayList<>();
+        List<Matrix4f> bases = new ArrayList<>();
+        List<boolean[]> hides = new ArrayList<>();
+        meshes.add(rig.gun); bases.add(null); hides.add(optic == null ? null : optic.hideGun());
+        for (GunRig.Attachment at : rig.attachments) {
+            meshes.add(at.mesh()); bases.add(rig.gun.bindGlobal[at.sockets()[0]]); hides.add(null);
         }
-        float[] lo = {Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE}, hi = {-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE};
-        bounds(gun[0], lo, hi);
-        for (float[][] p : parts) bounds(p[0], lo, hi);
-        float size = Math.max(hi[0] - lo[0], Math.max(hi[1] - lo[1], hi[2] - lo[2]));
-        float s = 1f / Math.max(size, 1e-3f);
-        Matrix4f fit = new Matrix4f().scale(s).translate(-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -(lo[2] + hi[2]) / 2);
-        gun = rig.gun.bake(new Matrix4f(fit).mul(AXES));
-        RonMesh[] meshes = new RonMesh[n];
-        for (int i = 0; i < n; i++) {
-            meshes[i] = rig.attachments.get(i).mesh();
-            parts[i] = meshes[i].bake(new Matrix4f(fit).mul(AXES).mul(partBase[i]));
+        if (optic != null) { meshes.add(optic.mesh()); bases.add(rig.gun.bindGlobal[optic.socket()]); hides.add(null); }
+        if (supp) { meshes.add(rig.suppressor.mesh()); bases.add(rig.gun.bindGlobal[rig.suppressor.socket()]); hides.add(null); }
+
+        Matrix4f axes = tp ? TP_AXES : AXES;
+        if (!tp) {
+            float[] lo = {Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE}, hi = {-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE};
+            for (int i = 0; i < meshes.size(); i++) bounds(bakeOne(meshes.get(i), AXES, bases.get(i))[0], lo, hi);
+            float size = Math.max(hi[0] - lo[0], Math.max(hi[1] - lo[1], hi[2] - lo[2]));
+            float s = 1f / Math.max(size, 1e-3f);
+            axes = new Matrix4f().scale(s).translate(-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -(lo[2] + hi[2]) / 2).mul(AXES);
         }
-        return new Baked(rig, gun, parts, meshes);
+        List<Part> parts = new ArrayList<>();
+        for (int i = 0; i < meshes.size(); i++) parts.add(new Part(meshes.get(i), bakeOne(meshes.get(i), axes, bases.get(i)), hides.get(i)));
+        return new Baked(rig, parts);
+    }
+
+    /** base null = the gun itself (skinned bind pose); otherwise an attachment placed rigidly at a socket. */
+    private static float[][] bakeOne(RonMesh mesh, Matrix4f axes, Matrix4f base) {
+        return base == null ? mesh.bake(axes) : mesh.bakeRigid(new Matrix4f(axes).mul(base));
     }
 
     private static void bounds(float[] p, float[] lo, float[] hi) {

@@ -137,5 +137,90 @@
         "volume": 0.5
       }
     ]
+  },
+  "m590.fire": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.m590.fire"
+  },
+  "m590.fire_1p": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ]
+  },
+  "m590.reload": {
+    "sounds": [
+      {
+        "name": "minecraft:item.crossbow.loading_middle",
+        "type": "event",
+        "pitch": 0.7,
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.m590.reload"
+  },
+  "m590.dryfire": {
+    "sounds": [
+      {
+        "name": "minecraft:block.dispenser.fail",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.dryfire"
+  },
+  "m4a1.fire_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.arrow.shoot",
+        "type": "event",
+        "pitch": 1.8,
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.fire_supp"
+  },
+  "m4a1.fire_1p_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.arrow.shoot",
+        "type": "event",
+        "pitch": 1.8,
+        "volume": 0.8
+      }
+    ]
+  },
+  "g19.fire_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.arrow.shoot",
+        "type": "event",
+        "pitch": 2.0,
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.fire_supp"
+  },
+  "g19.fire_1p_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.arrow.shoot",
+        "type": "event",
+        "pitch": 2.0,
+        "volume": 0.8
+      }
+    ]
   }
 }

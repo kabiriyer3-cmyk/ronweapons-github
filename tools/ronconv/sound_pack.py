@@ -32,7 +32,9 @@ def load(key, which=0):
     if not os.path.exists(wav):
         subprocess.run([VGM, "-s", str(i), "-o", wav, BANK], check=True, capture_output=True)
     a, sr = sf.read(wav, always_2d=True, dtype="float32")
-    assert sr == SR, (key, sr)
+    if sr != SR:  # a few banks samples are 44.1k: linear resample
+        t = np.arange(int(len(a) * SR / sr)) * (sr / SR)
+        a = np.stack([np.interp(t, np.arange(len(a)), a[:, c]) for c in range(a.shape[1])], axis=1).astype(np.float32)
     if a.shape[1] == 1:
         a = np.repeat(a, 2, axis=1)
     return a[:, :2]
@@ -72,14 +74,15 @@ class Pack:
             e["subtitle"] = subtitle
         self.events[ev] = e
 
-    def gunshots(self, wid, layers_1p, layers_3p):
-        """layers_*: list per variant of [(key, gain, offset)]"""
-        fp = [self.write(wid, f"fire_1p_{k + 1}", mix(*[(load(*key) if isinstance(key, tuple) else load(key), g, o) for key, g, o in v]))
+    def gunshots(self, wid, layers_1p, layers_3p, suffix="", attenuation=None):
+        """layers_*: list per variant of [(key, gain, offset)]; suffix "_supp" for the suppressed set"""
+        fp = [self.write(wid, f"fire_1p{suffix}_{k + 1}", mix(*[(load(*key) if isinstance(key, tuple) else load(key), g, o) for key, g, o in v]))
               for k, v in enumerate(layers_1p)]
-        tp = [self.write(wid, f"fire_3p_{k + 1}", mix(*[(load(*key) if isinstance(key, tuple) else load(key), g, o) for key, g, o in v]), mono=True)
+        tp = [self.write(wid, f"fire_3p{suffix}_{k + 1}", mix(*[(load(*key) if isinstance(key, tuple) else load(key), g, o) for key, g, o in v]), mono=True)
               for k, v in enumerate(layers_3p)]
-        self.event(f"{wid}.fire_1p", fp)
-        self.event(f"{wid}.fire", tp, f"subtitles.ronweapons.{wid}.fire", attenuation=96 if wid == "m4a1" else 64)
+        self.event(f"{wid}.fire_1p{suffix}", fp)
+        sub = "subtitles.ronweapons.fire_supp" if suffix else f"subtitles.ronweapons.{wid}.fire"
+        self.event(f"{wid}.fire{suffix}", tp, sub, attenuation=attenuation or (96 if wid in ("m4a1", "m590") else 64))
 
     def foley(self, wid, table):
         for ev, keys in table.items():
@@ -120,9 +123,18 @@ def main():
                      [1.90, "m4a1.check_magin"], [2.30, "m4a1.check_done"]],
     }
 
+    # suppressed M4: RoN core + interior suppressed reflection (quiet, short tail)
+    sup = [1427, 2336, 1858, 2088]
+    p.gunshots("m4a1", [[(sup[k], 0.9, 0), ("M4_Reflection_int_Suppressed_Base_0" + str(k % 2 + 1), 0.6, 0)] for k in range(4)],
+               [[(sup[k], 1.0, 0), ("M4_Reflection_int_Suppressed_Base_0" + str(k % 2 + 1), 0.5, 0)] for k in range(4)],
+               suffix="_supp", attenuation=32)
+
     # ---------------- Glock 19
     p.gunshots("g19", [[(f"Glock-{k + 1}", 0.85, 0), (f"Glock_MidShot{k + 1}", 0.45, 0), (f"Glock_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
                [[(f"Glock_MidShot{k + 1}", 1.0, 0), (f"Glock_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)])
+    p.gunshots("g19", [[(f"Glock-{n}-Suppressed", 0.9, 0), (f"Glock-ExteriorReflectionSuppressed0{k + 1}-1", 0.6, 0)] for k, n in enumerate((1, 3, 4))],
+               [[(f"Glock-{n}-Suppressed", 1.0, 0), (f"Glock-ExteriorReflectionSuppressed0{k + 1}-1", 0.5, 0)] for k, n in enumerate((1, 3, 4))],
+               suffix="_supp", attenuation=24)
     p.event("g19.dryfire", [p.write("g19", "dryfire", load("weap_g19_dry_fire_01"))], "subtitles.ronweapons.dryfire")
     p.event("g19.reload", [p.write("g19", "reload_3p", load("weap_g19_mag_in_01"), mono=True)], "subtitles.ronweapons.m4a1.reload", attenuation=20)
     p.foley("g19", {
@@ -155,6 +167,34 @@ def main():
            [1.36, "python.insert"], [2.40, "python.cyl_in"]]
     cues["python"] = {"draw": [[0.0, "python.draw"]], "reload_tac": rel, "reload_empty": rel,
                       "magcheck": [[0.25, "python.cyl_out"], [0.6, "python.check"], [1.85, "python.cyl_in"]]}
+
+    # ---------------- Mossberg 590A1 (RoN's pump guns share the 870 sample set)
+    p.gunshots("m590", [[(("870-" + str(k + 1), 0), 0.85, 0), (f"870_MidReflection_0{k + 1}", 0.6, 0), (f"870_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
+               [[(f"870_MidReflection_0{k + 1}", 1.0, 0), (f"870_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)])
+    p.event("m590.dryfire", [p.write("m590", "dryfire", load("weap_870_dryfire_01"))], "subtitles.ronweapons.dryfire")
+    p.event("m590.reload", [p.write("m590", "reload_3p", load("weap_870_shell_in_01"), mono=True)], "subtitles.ronweapons.m590.reload", attenuation=20)
+    p.foley("m590", {
+        "draw": ["m590_firstDraw"],
+        "pump_back": [f"weap_870_pump_out_0{i}" for i in range(1, 6)],
+        "pump_fwd": [f"weap_870_pump_in_0{i}" for i in range(1, 6)],
+        "reload_start": ["weap_870_reload_start_01", "weap_870_reload_start_02"],
+        "shell_grab": [f"weap_shotgun_shell_pull_0{i}" for i in range(1, 7)],
+        "shell_in": [f"weap_870_shell_in_0{i}" for i in range(1, 8)],
+        "shell_port": ["SHell-Insert1", "SHell-Insert2", "SHell-Insert3"],
+        "reload_end": ["weap_870_reload_end_01", "weap_870_reload_end_02"],
+        "check": ["weap_870_mag_check_01"],
+    })
+    pump = [[0.30, "m590.pump_back"], [0.53, "m590.pump_fwd"]]
+    cues["m590"] = {
+        "draw": [[0.0, "m590.draw"]],
+        "fire": pump, "fire_ads": pump,
+        # times from tag_bullet / tag_charginghandle motion (diag_m590.py), clips at ~31 fps
+        "reload_start": [[0.0, "m590.reload_start"], [0.45, "m590.shell_grab"]],
+        "reload_loop": [[0.28, "m590.shell_in"], [0.50, "m590.shell_grab"]],
+        "reload_end": [[0.30, "m590.shell_in"], [0.70, "m590.reload_end"]],
+        "reload_start_empty": [[0.12, "m590.pump_back"], [0.95, "m590.shell_port"], [1.68, "m590.pump_fwd"], [2.05, "m590.shell_grab"]],
+        "magcheck": [[0.25, "m590.check"]],
+    }
 
     os.makedirs(os.path.join(OUT, "assets", "ronweapons"), exist_ok=True)
     json.dump(p.events, open(os.path.join(OUT, "assets", "ronweapons", "sounds.json"), "w"), indent=1)

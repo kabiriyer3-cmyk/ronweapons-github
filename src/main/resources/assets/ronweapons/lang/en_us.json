@@ -15,5 +15,21 @@
   "subtitles.ronweapons.g19.fire": "Glock fires",
   "subtitles.ronweapons.python.fire": "Revolver fires",
   "subtitles.ronweapons.g19.reload": "Glock reloads",
-  "subtitles.ronweapons.python.reload": "Revolver reloads"
+  "subtitles.ronweapons.python.reload": "Revolver reloads",
+  "item.ronweapons.m590": "Mossberg 590A1",
+  "subtitles.ronweapons.m590.fire": "Shotgun fires",
+  "subtitles.ronweapons.m590.reload": "Shotgun loads",
+  "subtitles.ronweapons.fire_supp": "Suppressed shot",
+  "key.ronweapons.suppressor": "Suppressor on/off",
+  "key.ronweapons.optic": "Change optic",
+  "ronweapons.suppressor.on": "%s: suppressor ON",
+  "ronweapons.suppressor.off": "%s: suppressor OFF",
+  "ronweapons.optic": "%s: %s",
+  "ronweapons.optic.iron": "iron sights",
+  "ronweapons.optic.exps3": "EOTech EXPS3 holo",
+  "ronweapons.optic.m5b": "Aimpoint M5B",
+  "ronweapons.optic.t2": "Aimpoint Micro T-2",
+  "ronweapons.optic.hs510c": "Holosun 510C",
+  "ronweapons.optic.rmr": "Trijicon RMR",
+  "ronweapons.optic.sro": "Trijicon SRO"
 }

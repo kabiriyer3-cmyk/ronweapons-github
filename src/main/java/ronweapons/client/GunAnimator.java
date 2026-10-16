@@ -13,6 +13,12 @@ public final class GunAnimator {
     private boolean empty, moving, sprinting;
     private GunRig rig;
     private int cueIdx;
+    /** shell-by-shell reload (shotguns): shells still to insert, stop after the shell in hand, callback per inserted shell */
+    private int shellsLeft;
+    private boolean shellCancel;
+    private Runnable onShell;
+
+    public void onShellInserted(Runnable r) { this.onShell = r; }
 
     public void setRig(GunRig rig) { this.rig = rig; }
     public void setEmpty(boolean empty) { this.empty = empty; }
@@ -55,7 +61,26 @@ public final class GunAnimator {
         if (has("draw")) play("draw", false, 0.05f);
         else play("idle", true, 0.1f);
     }
-    public void fire(boolean last) { play(last && has("fire_last") ? "fire_last" : "fire", false, 0.05f); }
+    public void fire(boolean last, boolean ads) {
+        String a = last && has("fire_last") ? "fire_last" : (ads && rig != null && rig.actions.containsKey("fire_ads") ? "fire_ads" : "fire");
+        play(a, false, 0.05f);
+    }
+
+    /** RoN shotgun reload: start (grab a shell) or empty start (chamber one), loops (insert + grab next), end (insert the last). */
+    public void reloadShells(boolean emptyGun, int need) {
+        shellsLeft = need;
+        shellCancel = false;
+        play(emptyGun && has("reload_start_empty") ? "reload_start_empty" : "reload_start", false, 0.15f);
+    }
+
+    public boolean shellReloading() { return cur.equals("reload_start") || cur.equals("reload_start_empty") || cur.equals("reload_loop"); }
+
+    public void cancelShells() { shellCancel = true; }
+
+    private void inserted() {
+        shellsLeft--;
+        if (onShell != null) onShell.run();
+    }
     public void reload(boolean emptyMag) { play(emptyMag && has("reload_empty") ? "reload_empty" : "reload_tac", false, 0.15f); }
     public void action(String a) { play(a, false, 0.15f); }
 
@@ -78,7 +103,16 @@ public final class GunAnimator {
         if (locomotion(cur)) {
             if (!cur.equals(loco)) play(loco, true, 0.3f);
         } else if (curT >= duration(cur)) {
-            play(loco, true, cur.startsWith("fire") ? 0.25f : FADE_DEFAULT);
+            if (shellReloading()) {
+                // same decisions as the server (RonWeapons.stepShells)
+                if (!cur.equals("reload_start")) inserted();
+                if (shellsLeft <= 0) play(loco, true, FADE_DEFAULT);
+                else if (shellsLeft == 1 || shellCancel) play("reload_end", false, 0.04f);
+                else play("reload_loop", false, 0.04f);
+            } else {
+                if (cur.equals("reload_end")) inserted();
+                play(loco, true, cur.startsWith("fire") ? 0.25f : FADE_DEFAULT);
+            }
         }
         // the weapon idle pose depends on the bolt state, follow it while idling
         if (locomotion(cur)) curEmpty = empty;

@@ -31,6 +31,9 @@ public final class RonMesh {
     public final Map<String, Integer> boneIndex = new HashMap<>();
 
     public final Identifier[] textures;
+    /** material names; the pack builder marks lens glass / invisible helpers "#skip" and reticle planes "#reticle" */
+    public final String[] materialNames;
+    private final byte[] materialKind; // 0 normal, 1 skip, 2 reticle (emissive, translucent)
     public final int vertexCount;
     final float[] pos, nrm, uv;
     final short[] bIdx;
@@ -68,9 +71,12 @@ public final class RonMesh {
         }
         int nm = d.readInt();
         textures = new Identifier[nm];
+        materialNames = new String[nm];
+        materialKind = new byte[nm];
         for (int m = 0; m < nm; m++) {
-            d.readUTF(); // material name, informational
+            materialNames[m] = d.readUTF();
             textures[m] = Identifier.of(d.readUTF());
+            materialKind[m] = (byte) (materialNames[m].startsWith("#skip") ? 1 : materialNames[m].startsWith("#reticle") ? 2 : 0);
         }
         vertexCount = d.readInt();
         pos = new float[vertexCount * 3];
@@ -108,6 +114,20 @@ public final class RonMesh {
             return new RonMesh(d);
         }
     }
+
+    /** index of a material by name (case-insensitive), or -1 */
+    public int material(String name) {
+        for (int m = 0; m < materialNames.length; m++) if (materialNames[m].equalsIgnoreCase(name)) return m;
+        return -1;
+    }
+
+    /** Rigid placement: every bone gets the same matrix (static attachments on a socket; mesh space = socket space). */
+    public void skinRigid(Matrix4f m) {
+        Matrix4f[] all = rigidMats.length == parents.length ? rigidMats : (rigidMats = new Matrix4f[parents.length]);
+        for (int b = 0; b < all.length; b++) all[b] = m;
+        skin(all);
+    }
+    private Matrix4f[] rigidMats = new Matrix4f[0];
 
     public int bone(String name) {
         Integer i = boneIndex.get(name.toLowerCase(Locale.ROOT));
@@ -158,7 +178,12 @@ public final class RonMesh {
 
     /** Emits the last skinned result. Entity layers draw quads, so each triangle is a quad with a repeated corner. */
     public void emit(MatrixStack.Entry entry, VertexConsumerProvider consumers, int light) {
-        emit(outPos, outNrm, entry, consumers, light, OverlayTexture.DEFAULT_UV);
+        emit(outPos, outNrm, entry, consumers, light, OverlayTexture.DEFAULT_UV, null);
+    }
+
+    /** hide: per material, true = not drawn (e.g. the M4 carry handle while an optic sits on the rail) */
+    public void emit(MatrixStack.Entry entry, VertexConsumerProvider consumers, int light, boolean[] hide) {
+        emit(outPos, outNrm, entry, consumers, light, OverlayTexture.DEFAULT_UV, hide);
     }
 
     /** Rigidly transformed copy {positions, normals} of the bind pose, for static rendering (inventory icon etc.). */
@@ -175,16 +200,37 @@ public final class RonMesh {
         return new float[][] {p, n};
     }
 
+    /** Rigid bake: the whole mesh (all bones) by one matrix, mesh space in. */
+    public float[][] bakeRigid(Matrix4f m) {
+        Matrix4f[] all = new Matrix4f[parents.length];
+        for (int b = 0; b < all.length; b++) all[b] = m;
+        float[] keepP = outPos.clone(), keepN = outNrm.clone();
+        skin(all);
+        float[][] r = {outPos.clone(), outNrm.clone()};
+        System.arraycopy(keepP, 0, outPos, 0, keepP.length);
+        System.arraycopy(keepN, 0, outNrm, 0, keepN.length);
+        return r;
+    }
+
     public void emit(float[] p, float[] n, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light, int overlay) {
+        emit(p, n, entry, consumers, light, overlay, null);
+    }
+
+    public void emit(float[] p, float[] n, MatrixStack.Entry entry, VertexConsumerProvider consumers, int light, int overlay, boolean[] hide) {
         Matrix4f pm = entry.getPositionMatrix();
         for (int s = 0; s < sectionIndices.length; s++) {
-            VertexConsumer vc = consumers.getBuffer(RenderLayer.getEntityCutoutNoCull(textures[sectionMaterial[s]]));
+            int mat = sectionMaterial[s];
+            if (materialKind[mat] == 1 || (hide != null && mat < hide.length && hide[mat])) continue;
+            boolean reticle = materialKind[mat] == 2;
+            VertexConsumer vc = consumers.getBuffer(reticle ? RenderLayer.getEntityTranslucentEmissive(textures[mat])
+                    : RenderLayer.getEntityCutoutNoCull(textures[mat]));
+            int lt = reticle ? 0xF000F0 : light;
             int[] idx = sectionIndices[s];
             for (int i = 0; i < idx.length; i += 3) {
-                corner(vc, pm, entry, p, n, idx[i], light, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 1], light, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 2], light, overlay);
-                corner(vc, pm, entry, p, n, idx[i + 2], light, overlay);
+                corner(vc, pm, entry, p, n, idx[i], lt, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 1], lt, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay);
+                corner(vc, pm, entry, p, n, idx[i + 2], lt, overlay);
             }
         }
     }
