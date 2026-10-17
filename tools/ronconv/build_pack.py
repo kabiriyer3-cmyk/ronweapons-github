@@ -361,8 +361,81 @@ for wid in ("usp45", "sa58"):
         for part in ("start", "loop", "end"):
             WEAPONS[wid]["actions"].setdefault(f"aff_{kind}_{part}", (f"{AFF}/{name}_Affected_{part}", None))
 
+# ---------------- v10: RoN's own attachment lists per weapon (Available*Attachments of the weapon blueprints)
+D4ATT = "ReadyOrNot/Plugins/GameFeatures/ReadyOrNotDLC4/Content/Weapons/Attachments"
+OPTIC = {   # id: mesh, style, zoom, reticle material (substring, default "picture")
+    "exps3": (f"{ATT}/Optic_EPXS3/Holosight_EXPS3", "holo", 1.0, None),
+    "t2": (f"{ATT}/Optic_MicroT2/V2/SK_T2_highmount", "dot", 1.0, None),
+    "m5b": (f"{ATT}/Optic_M5B/sk_optic_m5", "dot", 1.0, None),
+    "srs": (f"{ATT}/Optic_SRS/SK_Optic_SRS", "dot", 1.0, None),
+    "srs_r": (f"{ATT}/Riser/sk_optic_srs_raised", "dot", 1.0, None),
+    "hs510c": (f"{ATT}/Optic_Holosun510C/Holosight_HS510CDot", "holo", 1.0, None),
+    "bossxe": (f"{ATT}/Optic_BossXE/Holosight_BossXEDot", "holo", 1.0, None),
+    "sdr": (f"{ATT}/Optic_SpecterDR/SK_Optic_SpecterDR", "scope", 4.0, "picture_specterdr"),
+    "atacr": (f"{ATT}/Optic_ATACR/Atacr_RMR/sk_optic_atacr_scope_rmr", "scope", 6.0, "picture_atacr"),
+    "mrohd": (f"{D4ATT}/Optic_MROHDMagnifier/SK_MRO_Sight_with_3X_Magnifier", "dot", 3.0, "mro_hd_magnifier"),
+    "venom": (f"{ATT}/Mesh/Venom_TallMount", "dot", 1.0, None),
+    "t1": (f"{ATT}/Mesh/MicroT1_TallMount", "dot", 1.0, None),
+    "rmr": (f"{ATT}/Optic_RMR/sk_optic_rmr_pistol", "dot", 1.0, None),
+    "rmr_g": (f"{ATT}/Optic_RMR/sk_optic_rmr_glock", "dot", 1.0, None),
+    "sro": (f"{ATT}/Optic_SRO/sk_optic_sro_pistol", "dot", 1.0, None),
+    "sro_g": (f"{ATT}/Optic_SRO/sk_optic_sro_glock", "dot", 1.0, None),
+}
+MUZZLE = {  # id: mesh, suppressor?
+    "socom338": (f"{ATT}/Suppressor_SOCOM338/sk_suppressor_socom338", True),
+    "asr": (f"{ATT}/Brake_ASR/sk_brake_ASR338", False),
+    "sfmb": (f"{ATT}/Brake_SFMB/sk_brake_sfmb", False),
+    "kkm": (f"{ATT}/compensators/KKMComp", False),
+    "gm9": (f"{ATT}/Suppressor_GM9/SK_suppressor_gm9", True),
+    "obsidian": (f"{ATT}/Obsidian45/SK_ObsSuppressor", True),
+    "osprey": (f"{ATT}/Suppressor_Osprey/sk_suppressor_osprey", True),
+    "choke": (f"{ATT}/Mesh/SMG_Compensator", False),
+}
+GRIP_MESH.update({"combat": f"{ATT}/Grip_Combat/sm_mod3", "rk1": f"{ATT}/Grip_RK1/Grip_RK1", "cqr": f"{ATT}/Grip_CQR/Grip_CQR"})
+# RoN's CQR / RK1 / combat grip poses are ACL-only: the hand takes the nearest grip pose that exports, on the foregrip socket
+GRIP_REF.update({"combat": GRIP_REF["vfg"], "rk1": GRIP_REF["afg"], "cqr": GRIP_REF["vfg"]})
+
+def optics(*spec):
+    return [{"id": i.split("@")[0], "socket": sock, "hide": hide} for i, sock, hide in spec]
+
+M4HIDE = ["Weapon_1P_M4A1_CARRYHANDLE_INST"]
+WEAPONS["m4a1"]["optics"] = optics(("exps3", "EXPS3_Socket", M4HIDE), ("t2", "MicroT2Raised_Socket", M4HIDE), ("m5b", "M5B_Socket", M4HIDE),
+                                   ("srs_r", "SRSRaised_Socket", M4HIDE), ("sdr", "sdr_socket", M4HIDE))
+WEAPONS["m4a1"]["muzzles"] = [("socom338", "socom338_socket", "tag_muzzle"), ("asr", "asr_socket", "tag_muzzle"), ("sfmb", "sfmb_socket", "tag_muzzle")]
+WEAPONS["m4a1"]["grips"] = {"vfg": {"socket": "foregrip_socket"},
+                            "afg": {"socket": "foregrip_socket", "ref": WEAPONS["m4a1"]["grips"]["afg"]["ref"]},
+                            "combat": {"socket": "combat_grip", "hand_socket": "foregrip_socket"}}
+WEAPONS["sa58"]["optics"] = optics(("srs", "Reflex_Socket", []), ("t2", "MicroT2Raised_Socket", []), ("m5b", "M5B_Socket", []),
+                                   ("exps3", "EXPS3_socket", []), ("hs510c", "HS510C_socket", []), ("bossxe", "Bossxe_socket", []),
+                                   ("sdr", "sdr_Socket", []), ("atacr", "atac_Socket", []), ("mrohd", "mrohd_socket", []))
+WEAPONS["sa58"]["muzzles"] = [("sfmb", "sfmb_socket", "tag_barrel_2"), ("asr", "asr_socket", "tag_barrel_2"), ("socom338", "socom338_socket", "tag_muzzle")]
+WEAPONS["sa58"]["grips"] = {"afg": {"socket": "foregrip_socket"}, "vfg": {"socket": "foregrip_socket"},
+                            "combat": {"socket": "combat_grip", "hand_socket": "foregrip_socket"},
+                            "rk1": {"socket": "rk1_socket", "hand_socket": "foregrip_socket"},
+                            "cqr": {"socket": "cqr_socket", "hand_socket": "foregrip_socket"}}
+WEAPONS["g19"]["optics"] = optics(("sro_g", "SROPistol_Socket", []), ("rmr_g", "RMRPistol_Socket", []))
+# RoN hangs the GM9 on a socket this G19 mesh does not have: the standard suppressor socket, turned to the bore by the builder
+WEAPONS["g19"]["muzzles"] = [("kkm", "comp_socket", None), ("gm9", "supressor_socket", None)]
+WEAPONS["usp45"]["optics"] = optics(("rmr", "RMRPistol_Socket", []), ("sro", "SROPistol_Socket", []))
+WEAPONS["usp45"]["muzzles"] = [("osprey", "supressor_socket", None), ("obsidian", "obs_suppressor_socket", None)]
+WEAPONS["python"]["optics"] = []
+WEAPONS["m590"]["optics"] = optics(("venom", "Reflex_Socket", []), ("t1", "Reflex_Socket", []), ("t2", "MicroT2Raised_socket", []))
+WEAPONS["m590"]["muzzles"] = [("choke", "Choke_Socket", None), ("osprey", "supressor_socket", None)]
+for w in WEAPONS.values():
+    for op in w.get("optics", []):
+        if "mesh" not in op and op["id"] in OPTIC:
+            op["mesh"], op["style"], op["zoom"], op["picture"] = OPTIC[op["id"]]
+    if "muzzles" in w:
+        w.pop("suppressor", None)
+for k in ("g19_shield", "python_shield"):
+    if k in WEAPONS:
+        base = WEAPONS[k.split("_")[0]]
+        for key in ("optics", "muzzles"):
+            WEAPONS[k][key] = base.get(key, [])
+        WEAPONS[k].pop("suppressor", None)
+
 RETICLE_RGB = (255, 36, 24)
-SKIP_MATERIAL = ("glass", "invisible")
+SKIP_MATERIAL = ("glass", "invisible", "pip_scope", "clear_inst")
 
 
 def quat_mat(q, pos):
@@ -456,6 +529,33 @@ def rotate_mesh(m, deg):
     return R
 
 
+def orient_muzzle(m, S):
+    """RoN muzzle devices hang off the muzzle along the bore (gun -Y). When a device sits on a socket made for another one,
+    turn it (axis-aligned, in its own space) until its long axis runs along the bore and it reaches forward."""
+    P = np.array(m.points, dtype=np.float64)
+    def score(deg):
+        R = rotate_matrix(deg)
+        Q = (np.c_[P @ R.T, np.ones(len(P))] @ S.T)[:, :3]
+        ext = Q.max(0) - Q.min(0)
+        along = ext[1] / max(ext.max(), 1e-6)
+        fwd = S[1, 3] - Q[:, 1].min()          # how far it reaches past the socket towards the muzzle
+        back = Q[:, 1].max() - S[1, 3]
+        return along * 10 + (fwd > back) * 5 + (deg == [0, 0, 0]) * 0.5
+    cands = [[0, 0, 0], [0, 0, 90], [0, 0, -90], [0, 0, 180], [90, 0, 0], [-90, 0, 0], [180, 0, 0], [0, 180, 0]]
+    best = max(cands, key=score)
+    if best != [0, 0, 0]:
+        rotate_mesh(m, best)
+    return best
+
+
+def rotate_matrix(deg):
+    rx, ry, rz = [np.radians(d) for d in deg]
+    Rx = np.array([[1, 0, 0], [0, np.cos(rx), -np.sin(rx)], [0, np.sin(rx), np.cos(rx)]])
+    Ry = np.array([[np.cos(ry), 0, np.sin(ry)], [0, 1, 0], [-np.sin(ry), 0, np.cos(ry)]])
+    Rz = np.array([[np.cos(rz), -np.sin(rz), 0], [np.sin(rz), np.cos(rz), 0], [0, 0, 1]])
+    return Rz @ Ry @ Rx
+
+
 def socket_matrix(gun, name):
     """bind global of a gun socket, relative to J_Gun (bone 0)"""
     _, inv = bind_data(gun)
@@ -466,7 +566,7 @@ def socket_matrix(gun, name):
     return None
 
 
-def prepare_optic(mesh, S, style, eye_dist_cm, png_path):
+def prepare_optic(mesh, S, style, eye_dist_cm, png_path, picture=None):
     """Marks lens / helper materials #skip and the reticle plane #reticle (planar UVs, centre = (0.5, 0.5)).
     Returns the reticle centre in gun space (cm) or None. The reticle texture is our own drawing, sized in angle at the eye."""
     pts = np.array(mesh.points, dtype=np.float64)
@@ -476,9 +576,14 @@ def prepare_optic(mesh, S, style, eye_dist_cm, png_path):
     uv = np.array(mesh.wedge_uv, dtype=np.float64).copy()
     centre = None
     names = list(mesh.materials)
+    want = None
+    if picture:
+        want = next((i for i, n in enumerate(names) if picture in n.lower()), None)
     for mi, mn in enumerate(names):
         low = mn.lower()
-        if any(k in low for k in SKIP_MATERIAL):
+        if want is not None and "picture" in low and mi != want:
+            names[mi] = "#skip " + mn
+        elif any(k in low for k in SKIP_MATERIAL):
             names[mi] = "#skip " + mn
         elif "picture" in low and centre is None:
             wedges = np.unique(F[fm == mi].flatten())
@@ -514,6 +619,20 @@ def draw_reticle(path, style, size_cm, dist_cm, res=512):
     if style == "holo":
         rr, w = deg(0.54), max(1.2, deg(0.035))
         a = np.maximum(a, np.clip(w + 0.75 - np.abs(r - rr), 0, 1.5) / 1.5)
+    if style == "scope":
+        # thin black crosshair with thick outer posts and a small lit centre dot
+        cx, cy = np.abs(x - res / 2 + 0.5), np.abs(y - res / 2 + 0.5)
+        thin, thick = max(1.0, res / 400), max(3.0, res / 90)
+        cross = ((cx < thin) | (cy < thin)) & (r > deg(0.04))
+        posts = ((cx < thick) & (cy > res * 0.18)) | ((cy < thick) & (cx > res * 0.18))
+        black = np.zeros((res, res, 4), np.uint8)
+        black[..., 3] = ((cross | posts) * 235).astype(np.uint8)
+        lit = np.clip(max(1.4, deg(0.05)) + 0.75 - r, 0, 1.5) / 1.5
+        black[..., 0], black[..., 1], black[..., 2] = (np.array(RETICLE_RGB)[:, None, None] * (lit > 0)).astype(np.uint8)
+        black[..., 3] = np.maximum(black[..., 3], (lit * 255).astype(np.uint8))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        Image.fromarray(black, "RGBA").save(path, optimize=True)
+        return
     glow = np.exp(-(r / max(2.0, deg(0.16))) ** 2) * 0.35
     a = np.clip(np.maximum(a, glow), 0, 1)
     im = np.zeros((res, res, 4), np.uint8)
@@ -765,7 +884,7 @@ def main():
             tex.reticles[folder] = f"{NS}:textures/ron/{folder}/reticle.png"
             eye_y = w["ads_eye"][1]
             pic_y = (S @ np.array([0, 0, 0, 1.0]))[1]
-            c = prepare_optic(m, S, op["style"], (eye_y if eye_y is not None else 30.0) - pic_y, png)
+            c = prepare_optic(m, S, op["style"], (eye_y if eye_y is not None else 30.0) - pic_y, png, op.get("picture"))
             if c is None:
                 print(f"  ! optic {op['id']}: no reticle plane, iron-sight eye kept")
                 eye = w["ads_eye"]
@@ -773,7 +892,8 @@ def main():
                 eye = [round(float(c[0]), 3), eye_y, round(float(c[2]), 3)]
             print(f"   optic {op['id']:6s}:", write_mesh(m, os.path.join(base, name + ".ronmesh"), lambda mm, f=folder: tex.for_material(mm, f), rigid=True),
                   "eye", eye)
-            meta["optics"].append({"id": op["id"], "mesh": name, "socket": op["socket"], "eye": eye, "hide": op.get("hide", [])})
+            meta["optics"].append({"id": op["id"], "mesh": name, "socket": op["socket"], "eye": eye, "hide": op.get("hide", []),
+                                   "zoom": op.get("zoom", 1.0)})
         sp = w.get("suppressor")
         if sp:
             p = exported(sp["mesh"], ".psk")
@@ -784,6 +904,21 @@ def main():
                 meta["suppressor"] = {"mesh": "suppressor", "socket": sp["socket"]}
             else:
                 print(f"  ! suppressor {sp['mesh']} not exported")
+        if w.get("muzzles"):
+            meta["muzzles"] = []
+        for mid, msock, hide_bone in w.get("muzzles", []):
+            p = exported(MUZZLE[mid][0], ".psk")
+            S = socket_matrix(gun, msock)
+            if not p or S is None:
+                print(f"  ! muzzle {mid}: mesh or socket {msock} missing")
+                continue
+            m = read_psk(p)
+            m.materials = ["#skip " + x if any(k in x.lower() for k in SKIP_MATERIAL) else x for x in m.materials]
+            rot = orient_muzzle(m, S)
+            fname = f"muzzle_{mid}"
+            print(f"   muzzle {mid:9s}:", write_mesh(m, os.path.join(base, fname + ".ronmesh"), tf, rigid=True), "turned", rot)
+            meta["muzzles"].append({"id": mid, "mesh": fname, "socket": msock, "suppressor": MUZZLE[mid][1],
+                                    "hide_bone": hide_bone if hide_bone and bone_index(gun, hide_bone) >= 0 else None})
         lt = w.get("light")
         if lt:
             p = exported(lt["mesh"], ".psk")
@@ -819,7 +954,7 @@ def main():
             gm = read_psk(p)
             print(f"   grip {gid:6s}:", write_mesh(gm, os.path.join(base, f"grip_{gid}.ronmesh"), tf, rigid=True),
                   "hand off", np.round(off[:3, 3], 1), len(fingers), "fingers")
-            meta["grips"][gid] = {"mesh": f"grip_{gid}", "socket": gs["socket"],
+            meta["grips"][gid] = {"mesh": f"grip_{gid}", "socket": gs["socket"], "hand_socket": gs.get("hand_socket", gs["socket"]),
                                   "hand": [round(float(v), 5) for v in off.T.flatten()], "fingers": fingers}
         mc = w.get("magcheck")
         if mc and bone_index(gun, mc["socket"]) >= 0:

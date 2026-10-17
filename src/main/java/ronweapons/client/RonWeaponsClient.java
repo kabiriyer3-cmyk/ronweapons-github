@@ -193,11 +193,13 @@ public final class RonWeaponsClient implements ClientModInitializer {
         }
 
         while (suppKey.wasPressed()) {
-            if (def.suppressible() && ANIM.canAct()) {
-                boolean on = !RonWeapons.suppressed(stack);
+            if (def.muzzleCount() > 1 && ANIM.canAct()) {
+                String next = def.muzzles()[(RonWeapons.muzzle(stack) + 1) % def.muzzleCount()];
+                boolean on = !next.equals("none");
                 ClientPlayNetworking.send(new ActionPayload(ActionPayload.TOGGLE_SUPPRESSOR));
                 player.playSound(RonWeapons.SND_SELECT, 0.4f, on ? 0.8f : 1.2f);
-                WeaponHud.notify(Text.translatable(on ? "ronweapons.suppressor.on" : "ronweapons.suppressor.off", def.name()));
+                WeaponHud.notify(on ? Text.translatable("ronweapons.muzzle", def.name(), Text.translatable("ronweapons.muzzle." + next))
+                        : Text.translatable("ronweapons.muzzle.off", def.name()));
             }
         }
         while (opticKey.wasPressed()) {
@@ -250,7 +252,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                     boolean supp = RonWeapons.suppressed(stack);
                     playLocal(RonWeapons.id(def.id() + (supp ? ".fire_1p_supp" : ".fire_1p")), supp ? 0.8f : 1.0f,
                             0.97f + player.getRandom().nextFloat() * 0.06f);
-                    float kick = def.recoilPitch() * (aiming() ? 0.65f : 1f);
+                    float kick = def.recoilPitch() * (aiming() ? 0.65f : 1f) * (RonWeapons.compensated(stack) ? 0.85f : 1f);
                     player.setPitch(player.getPitch() - kick);
                     player.setYaw(player.getYaw() + (player.getRandom().nextFloat() - 0.5f) * 0.4f);
                 } else if (!wasAttack) {

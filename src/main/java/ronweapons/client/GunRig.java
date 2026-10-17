@@ -67,7 +67,7 @@ public final class GunRig {
     public record Cue(float t, Identifier sound, float volume) {}
 
     /** A swappable optic on a gun socket. eye: ADS eye in gun space (cm) on the reticle line; hideGun: gun materials it replaces. */
-    public record Optic(String id, RonMesh mesh, int socket, float[] eye, boolean keepDistance, boolean[] hideGun) {}
+    public record Optic(String id, RonMesh mesh, int socket, float[] eye, boolean keepDistance, boolean[] hideGun, float zoom) {}
 
     /**
      * Spent brass / dropped mags. ejectOn: "fire" or the cue sound (e.g. "m590.pump_back") that ejects; count casings per eject;
@@ -76,8 +76,8 @@ public final class GunRig {
     public record FxConfig(RonMesh casing, int ejectBone, String ejectOn, int count, float[] vel, String magCue,
                            RonMesh mag, int magSocket, Identifier landSound) {}
 
-    /** A muzzle device (suppressor) on a gun socket. */
-    public record Muzzle(RonMesh mesh, int socket) {}
+    /** A muzzle device (suppressor, brake, compensator, choke) on a gun socket; hideBones: gun parts it replaces (RoN HideBoneOnMesh). */
+    public record Muzzle(String id, RonMesh mesh, int socket, boolean suppressor, boolean[] hideBones) {}
 
     /** A mesh carried by an arms bone (the ballistic shield on ShieldAttachSocket). */
     public record ArmsAttachment(RonMesh mesh, int bone) {}
@@ -89,7 +89,7 @@ public final class GunRig {
      * A foregrip on a gun socket. hand: where the left hand sits relative to the socket (arms model space, cm), from a RoN idle
      * pose made for that grip; fingers: arms bone index + local pos / rot of the hand's children in that pose (the grip hold).
      */
-    public record Grip(String id, RonMesh mesh, int socket, Matrix4f hand, int[] fingerBones, float[] fingerPos, float[] fingerRot) {}
+    public record Grip(String id, RonMesh mesh, int socket, int handSocket, Matrix4f hand, int[] fingerBones, float[] fingerPos, float[] fingerRot) {}
 
     /** Mag check read-out: socket the numbers ride on (gun space offset, cm) and the clip window the magazine is out (or null). */
     public record MagCheck(int socket, float[] offset, float[] window) {}
@@ -109,6 +109,8 @@ public final class GunRig {
     public final Map<String, List<Cue>> cues = new HashMap<>();
     public final Map<String, Optic> optics = new HashMap<>();
     public Muzzle suppressor;
+    /** RoN muzzle devices by id (WeaponDef.muzzles); packs before v10 only have the single suppressor above */
+    public final Map<String, Muzzle> muzzles = new HashMap<>();
     public FxConfig fx;
     public ArmsAttachment armsAttachment;
     public Light light;
@@ -197,14 +199,35 @@ public final class GunRig {
                     if (m >= 0) hide[m] = true;
                 }
                 String oid = op.get("id").getAsString();
-                optics.put(oid, new Optic(oid, RonMesh.read(r.get().getInputStream()), socket, eye, keep, hide));
+                optics.put(oid, new Optic(oid, RonMesh.read(r.get().getInputStream()), socket, eye, keep, hide,
+                        op.has("zoom") ? Math.max(1f, op.get("zoom").getAsFloat()) : 1f));
             }
         }
         if (o.has("suppressor")) {
             JsonObject sp = o.getAsJsonObject("suppressor");
             Optional<Resource> r = rm.getResource(RonWeapons.id(base + sp.get("mesh").getAsString() + ".ronmesh"));
             int socket = gun.bone(sp.get("socket").getAsString());
-            if (r.isPresent() && socket >= 0) suppressor = new Muzzle(RonMesh.read(r.get().getInputStream()), socket);
+            if (r.isPresent() && socket >= 0) suppressor = new Muzzle("supp", RonMesh.read(r.get().getInputStream()), socket, true, null);
+        }
+        if (o.has("muzzles")) {
+            for (JsonElement el : o.getAsJsonArray("muzzles")) {
+                JsonObject mz = el.getAsJsonObject();
+                Optional<Resource> r = rm.getResource(RonWeapons.id(base + mz.get("mesh").getAsString() + ".ronmesh"));
+                int socket = gun.bone(mz.get("socket").getAsString());
+                if (r.isEmpty() || socket < 0) continue;
+                boolean[] hide = null;
+                if (mz.has("hide_bone") && !mz.get("hide_bone").isJsonNull()) {
+                    int hb = gun.bone(mz.get("hide_bone").getAsString());
+                    if (hb >= 0) {
+                        hide = new boolean[gun.parents.length];
+                        hide[hb] = true;
+                        for (int b = hb + 1; b < hide.length; b++) if (gun.parents[b] >= 0 && hide[gun.parents[b]]) hide[b] = true;
+                    }
+                }
+                String mid = mz.get("id").getAsString();
+                muzzles.put(mid, new Muzzle(mid, RonMesh.read(r.get().getInputStream()), socket,
+                        mz.has("suppressor") && mz.get("suppressor").getAsBoolean(), hide));
+            }
         }
         if (o.has("fx")) {
             JsonObject f = o.getAsJsonObject("fx");
@@ -263,7 +286,8 @@ public final class GunRig {
                     System.arraycopy(fv.get(i), 0, fp, i * 3, 3);
                     System.arraycopy(fv.get(i), 3, fr, i * 4, 4);
                 }
-                grips.put(gid, new Grip(gid, RonMesh.read(r.get().getInputStream()), socket, new Matrix4f().set(hm),
+                int handSocket = g.has("hand_socket") ? gun.bone(g.get("hand_socket").getAsString()) : socket;
+                grips.put(gid, new Grip(gid, RonMesh.read(r.get().getInputStream()), socket, handSocket < 0 ? socket : handSocket, new Matrix4f().set(hm),
                         fb.stream().mapToInt(Integer::intValue).toArray(), fp, fr));
             }
         }
@@ -379,6 +403,14 @@ public final class GunRig {
     }
 
     public static String error(String id) { return ERRORS.get(id); }
+
+    /** the muzzle device for a stack's muzzle id (old packs: the one suppressor for any suppressor id) */
+    public Muzzle muzzle(String id) {
+        if (id == null || id.equals("none")) return null;
+        Muzzle m = muzzles.get(id);
+        if (m == null && muzzles.isEmpty() && ronweapons.WeaponDef.isSuppressor(id)) m = suppressor;
+        return m;
+    }
 
     /** seconds into the action at which a cue sound plays (ronweapons:&lt;sound&gt;), or -1 */
     public float cueTime(String action, String sound) {

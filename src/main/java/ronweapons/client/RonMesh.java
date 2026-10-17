@@ -188,9 +188,15 @@ public final class RonMesh {
     }
 
     /** Rigidly transformed copy {positions, normals} of the bind pose, for static rendering (inventory icon etc.). */
-    public float[][] bake(Matrix4f m) {
+    public float[][] bake(Matrix4f m) { return bake(m, null); }
+
+    /** hidden: bones whose vertices collapse away (gun parts a muzzle device replaces), or null */
+    public float[][] bake(Matrix4f m, boolean[] hidden) {
         Matrix4f[] all = new Matrix4f[parents.length];
-        for (int b = 0; b < all.length; b++) all[b] = new Matrix4f(m).mul(bindGlobal[b]).mul(invBind[b]);
+        for (int b = 0; b < all.length; b++) {
+            all[b] = new Matrix4f(m).mul(bindGlobal[b]).mul(invBind[b]);
+            if (hidden != null && b < hidden.length && hidden[b]) all[b].zero();
+        }
         float[] p = new float[vertexCount * 3], n = new float[vertexCount * 3];
         float[] keepP = outPos.clone(), keepN = outNrm.clone();
         skin(all);

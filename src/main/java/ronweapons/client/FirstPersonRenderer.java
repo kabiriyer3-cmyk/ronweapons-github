@@ -39,6 +39,15 @@ public final class FirstPersonRenderer {
     private static GunRig.Grip lastGrip;
     private static String warnedFor;
 
+    private static float opticZoom = 1f;
+
+    /** world FOV divisor: the optic's magnification, faded in with ADS (1 = no zoom) */
+    public static float zoom() {
+        if (!RonWeaponsClient.holdingGun() || opticZoom <= 1.001f) return 1f;
+        float e = ads * ads * (3 - 2 * ads);
+        return 1f + (opticZoom - 1f) * e;
+    }
+
     /** 0 hip .. 1 fully aimed down the sights */
     public static float adsAmount() { return ads; }
 
@@ -95,7 +104,7 @@ public final class FirstPersonRenderer {
         rig.gun.globals(wlp, wlr, gunG);
         if (g != null && gw > 0.001f && rig.handLE >= 0) {
             // move the whole left arm rigidly so the hand lands on the grip (follows the gun: recoil, pump, sway)
-            Matrix4f target = new Matrix4f(armsG[rig.attachBone]).mul(gunG[g.socket()]).mul(g.hand());
+            Matrix4f target = new Matrix4f(armsG[rig.attachBone]).mul(gunG[g.handSocket()]).mul(g.hand());
             Matrix4f hand = armsG[rig.handLE];
             Vector3f ph = hand.getTranslation(new Vector3f()), pt = target.getTranslation(new Vector3f());
             Quaternionf qh = hand.getNormalizedRotation(new Quaternionf()), qt = target.getNormalizedRotation(new Quaternionf());
@@ -108,6 +117,8 @@ public final class FirstPersonRenderer {
         Matrix4f attach = new Matrix4f(view).mul(armsG[rig.attachBone]);
         ItemStack stack = mc.player.getMainHandStack();
         GunRig.Optic optic = def == null ? null : rig.optics.get(def.optics()[RonWeapons.optic(stack)]);
+        GunRig.Muzzle device = rig.muzzle(RonWeapons.muzzleId(stack));
+        opticZoom = optic == null ? 1f : optic.zoom();
         Ads adsD = adsByOptic.getOrDefault(optic == null ? "iron" : optic.id(), adsByOptic.get("iron"));
         Vector3f adsT = adsD.t();
         Quaternionf adsQ = adsD.q();
@@ -142,7 +153,7 @@ public final class FirstPersonRenderer {
         }
 
         // camera-space sockets for world effects (tracer start, brass, dropped mag)
-        int muzzle = rig.suppressor != null && RonWeapons.suppressed(stack) ? rig.suppressor.socket() : rig.muzzleBone;
+        int muzzle = device != null && device.suppressor() ? device.socket() : rig.muzzleBone;
         Fx.Fp.update(muzzle < 0 ? null : new Matrix4f(attach).mul(gunG[muzzle]),
                 rig.fx == null || rig.fx.ejectBone() < 0 ? null : new Matrix4f(attach).mul(gunG[rig.fx.ejectBone()]),
                 rig.fx == null || rig.fx.magSocket() < 0 ? null : new Matrix4f(attach).mul(gunG[0])
@@ -157,6 +168,9 @@ public final class FirstPersonRenderer {
         boolean gunHidden = rig.hideAfter.containsKey(anim.current()) && anim.time() >= rig.hideAfter.get(anim.current());
         for (int b = 0; b < armsG.length; b++) armsSkin[b].set(view).mul(armsG[b]).mul(rig.arms.invBind[b]);
         for (int b = 0; b < gunG.length; b++) gunSkin[b].set(attach).mul(gunG[b]).mul(rig.gun.invBind[b]);
+        if (device != null && device.hideBones() != null) {
+            for (int b = 0; b < gunG.length; b++) if (device.hideBones()[b]) gunSkin[b].zero(); // the brake replaces the flash hider
+        }
         MatrixStack.Entry entry = matrices.peek();
         rig.arms.skin(armsSkin);
         rig.arms.emit(entry, consumers, light);
@@ -169,9 +183,7 @@ public final class FirstPersonRenderer {
         rig.gun.emit(entry, consumers, light, optic == null ? null : optic.hideGun());
         renderAttachments(rig, attach, entry, consumers, light);
         if (optic != null) renderOnSocket(optic.mesh(), optic.socket(), attach, entry, consumers, light);
-        if (rig.suppressor != null && RonWeapons.suppressed(stack)) {
-            renderOnSocket(rig.suppressor.mesh(), rig.suppressor.socket(), attach, entry, consumers, light);
-        }
+        if (device != null) renderOnSocket(device.mesh(), device.socket(), attach, entry, consumers, light);
         if (rig.light != null) renderOnSocket(rig.light.mesh(), rig.light.socket(), attach, entry, consumers, light);
         if (grip != null) renderOnSocket(grip.mesh(), grip.socket(), attach, entry, consumers, light);
         if (def != null && rig.magCheck != null && anim.current().equals("magcheck")) magCheckText(rig, def, anim, attach, matrices, consumers);

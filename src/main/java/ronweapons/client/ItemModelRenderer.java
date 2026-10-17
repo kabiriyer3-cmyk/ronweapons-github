@@ -60,11 +60,11 @@ public final class ItemModelRenderer {
         if (rig == null) return false;
         String opticId = def == null ? "iron" : def.optics()[RonWeapons.optic(stack)];
         GunRig.Optic optic = rig.optics.get(opticId);
-        boolean supp = RonWeapons.suppressed(stack) && rig.suppressor != null;
+        GunRig.Muzzle device = rig.muzzle(RonWeapons.muzzleId(stack));
         GunRig.Grip grip = rig.grips.get(RonWeapons.gripId(stack));
-        String key = rigId + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp + "|" + (grip == null ? "-" : grip.id());
+        String key = rigId + "|" + (optic == null ? "iron" : opticId) + "|" + (device == null ? "-" : device.id()) + "|" + tp + "|" + (grip == null ? "-" : grip.id());
         Baked b = CACHE.get(key);
-        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp, rigId.equals("shield"), grip));
+        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, device, tp, rigId.equals("shield"), grip));
 
         matrices.push();
         switch (mode) {
@@ -95,7 +95,9 @@ public final class ItemModelRenderer {
     }
 
     /** Bakes once per rig + attachment state. Icons fit the whole silhouette into one item unit; third person keeps real size. */
-    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp, boolean shield, GunRig.Grip grip) {
+    private static boolean[] hiddenBones;
+
+    private static Baked bake(GunRig rig, GunRig.Optic optic, GunRig.Muzzle device, boolean tp, boolean shield, GunRig.Grip grip) {
         List<RonMesh> meshes = new ArrayList<>();
         List<Matrix4f> bases = new ArrayList<>();
         List<boolean[]> hides = new ArrayList<>();
@@ -104,7 +106,8 @@ public final class ItemModelRenderer {
             meshes.add(at.mesh()); bases.add(rig.gun.bindGlobal[at.sockets()[0]]); hides.add(null);
         }
         if (optic != null) { meshes.add(optic.mesh()); bases.add(rig.gun.bindGlobal[optic.socket()]); hides.add(null); }
-        if (supp) { meshes.add(rig.suppressor.mesh()); bases.add(rig.gun.bindGlobal[rig.suppressor.socket()]); hides.add(null); }
+        if (device != null) { meshes.add(device.mesh()); bases.add(rig.gun.bindGlobal[device.socket()]); hides.add(null); }
+        hiddenBones = device == null ? null : device.hideBones();
         if (rig.light != null) { meshes.add(rig.light.mesh()); bases.add(rig.gun.bindGlobal[rig.light.socket()]); hides.add(null); }
         if (grip != null) { meshes.add(grip.mesh()); bases.add(rig.gun.bindGlobal[grip.socket()]); hides.add(null); }
 
@@ -123,7 +126,7 @@ public final class ItemModelRenderer {
 
     /** base null = the gun itself (skinned bind pose); otherwise an attachment placed rigidly at a socket. */
     private static float[][] bakeOne(RonMesh mesh, Matrix4f axes, Matrix4f base) {
-        return base == null ? mesh.bake(axes) : mesh.bakeRigid(new Matrix4f(axes).mul(base));
+        return base == null ? mesh.bake(axes, hiddenBones) : mesh.bakeRigid(new Matrix4f(axes).mul(base));
     }
 
     private static void bounds(float[] p, float[] lo, float[] hi) {

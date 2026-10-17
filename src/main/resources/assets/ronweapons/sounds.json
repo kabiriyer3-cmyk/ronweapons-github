@@ -526,5 +526,26 @@
         "volume": 0.8
       }
     ]
+  },
+  "m590.fire_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.ronweapons.m590.fire"
+  },
+  "m590.fire_1p_supp": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.generic.explode",
+        "type": "event",
+        "pitch": 1.6,
+        "volume": 0.6
+      }
+    ]
   }
 }

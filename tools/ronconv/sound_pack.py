@@ -283,6 +283,27 @@ def main():
     # ---------------- Mossberg 590A1 (RoN's pump guns share the 870 sample set)
     p.gunshots("m590", [[(("870-" + str(k + 1), 0), 0.85, 0), (f"870_MidReflection_0{k + 1}", 0.6, 0), (f"870_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
                [[(f"870_MidReflection_0{k + 1}", 1.0, 0), (f"870_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)])
+    # suppressed 590 (Osprey): RoN's own suppressed 870 shots if the bank has them, else the core shot muffled
+    def muffle(a, keep=0.7):
+        a = a[:int(keep * SR)].copy()
+        out = np.zeros_like(a)
+        k = 0.18
+        for c in range(a.shape[1]):
+            y = 0.0
+            col = a[:, c]
+            o = out[:, c]
+            for i in range(len(col)):
+                y += k * (col[i] - y)
+                o[i] = y
+        f = np.linspace(1, 0, len(out)) ** 2
+        return out * f[:, None] * 0.9
+    try:
+        shots = [load(f"870-{k + 1}_Suppressed") for k in range(4)]
+    except KeyError:
+        shots = [muffle(load(("870-" + str(k + 1), 0)[0])) for k in range(4)]
+    p.event("m590.fire_1p_supp", [p.write("m590", f"fire_1p_supp_{k + 1}", a) for k, a in enumerate(shots)])
+    p.event("m590.fire_supp", [p.write("m590", f"fire_3p_supp_{k + 1}", a, mono=True) for k, a in enumerate(shots)],
+            "subtitles.ronweapons.fire_supp", attenuation=32)
     p.event("m590.dryfire", [p.write("m590", "dryfire", load("weap_870_dryfire_01"))], "subtitles.ronweapons.dryfire")
     p.event("m590.reload", [p.write("m590", "reload_3p", load("weap_870_shell_in_01"), mono=True)], "subtitles.ronweapons.m590.reload", attenuation=20)
     p.foley("m590", {

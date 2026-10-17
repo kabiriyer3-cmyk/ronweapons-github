@@ -42,7 +42,8 @@ public final class WeaponHud {
             StringBuilder parts = new StringBuilder();
             String optic = def.optics()[RonWeapons.optic(stack)];
             if (!optic.equals("iron")) parts.append(Text.translatable("ronweapons.optic." + optic).getString());
-            if (RonWeapons.suppressed(stack)) sep(parts).append(Text.translatable("ronweapons.hud.supp").getString());
+            String muzzle = RonWeapons.muzzleId(stack);
+            if (!muzzle.equals("none")) sep(parts).append(Text.translatable("ronweapons.muzzle." + muzzle).getString());
             String grip = RonWeapons.gripId(stack);
             if (!grip.equals("none")) sep(parts).append(Text.translatable("ronweapons.grip." + grip).getString());
             Text line1 = Text.literal(def.name());

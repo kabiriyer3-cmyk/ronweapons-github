@@ -61,6 +61,9 @@ public final class RonWeapons implements ModInitializer {
             ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
     public static final ComponentType<Boolean> SUPPRESSOR = Registry.register(Registries.DATA_COMPONENT_TYPE, id("suppressor"),
             ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
+    /** muzzle device index into WeaponDef.muzzles (0 = bare muzzle) */
+    public static final ComponentType<Integer> MUZZLE = Registry.register(Registries.DATA_COMPONENT_TYPE, id("muzzle"),
+            ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
     /** foregrip index into WeaponDef.grips (0 = none) */
     public static final ComponentType<Integer> GRIP = Registry.register(Registries.DATA_COMPONENT_TYPE, id("grip"),
             ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
@@ -171,9 +174,26 @@ public final class RonWeapons implements ModInitializer {
         return d == null ? "none" : d.grips()[grip(stack)];
     }
 
-    public static boolean suppressed(ItemStack stack) {
+    public static int muzzle(ItemStack stack) {
         WeaponDef d = def(stack);
-        return d != null && d.suppressible() && stack.getOrDefault(SUPPRESSOR, false);
+        int m = stack.getOrDefault(MUZZLE, 0);
+        return d == null || m < 0 || m >= d.muzzleCount() ? 0 : m;
+    }
+
+    /** muzzle device id on the stack ("none" = bare muzzle) */
+    public static String muzzleId(ItemStack stack) {
+        WeaponDef d = def(stack);
+        return d == null ? "none" : d.muzzles()[muzzle(stack)];
+    }
+
+    public static boolean suppressed(ItemStack stack) {
+        return WeaponDef.isSuppressor(muzzleId(stack));
+    }
+
+    /** a brake / compensator / choke: a bit less muzzle climb */
+    public static boolean compensated(ItemStack stack) {
+        String m = muzzleId(stack);
+        return !m.equals("none") && !WeaponDef.isSuppressor(m);
     }
 
     @Override
@@ -272,8 +292,8 @@ public final class RonWeapons implements ModInitializer {
                 s.cancel = true;
             }
             case ActionPayload.TOGGLE_SUPPRESSOR -> {
-                if (busy || !d.suppressible()) return;
-                stack.set(SUPPRESSOR, !suppressed(stack));
+                if (busy || d.muzzleCount() < 2) return;
+                stack.set(MUZZLE, (muzzle(stack) + 1) % d.muzzleCount());
             }
             case ActionPayload.TOGGLE_LIGHT -> Gear.toggleLight(player, stack, d);
             case ActionPayload.CYCLE_OPTIC -> {
