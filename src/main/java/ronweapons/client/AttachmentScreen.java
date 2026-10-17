@@ -67,9 +67,10 @@ public class AttachmentScreen extends Screen {
 
     // ---------------------------------------------------------------- layout
     private float cx() { return width / 2f; }
-    private float cy() { return height / 2f + 8; }
-    private float outerR() { return Math.min(width, height * 1.15f) * 0.40f; }
-    private float innerR() { return outerR() * 0.66f; }
+    private float cy() { return height / 2f + 2; }
+    /** the whole ring, the tabs above it and the two text lines below it stay on screen */
+    private float outerR() { return Math.max(40f, Math.min(width * 0.36f, height / 2f - 42f)); }
+    private float innerR() { return outerR() * 0.64f; }
 
     private int sectorAt(double mx, double my) {
         if (cats.isEmpty()) return -1;
@@ -124,7 +125,7 @@ public class AttachmentScreen extends Screen {
 
         // category tabs
         int tabW = 92, tabH = 16, gapT = 6, total = cats.size() * tabW + (cats.size() - 1) * gapT;
-        int tx = (int) (cx() - total / 2f), ty = (int) Math.max(4, cy() - outerR() - 30);
+        int tx = (int) (cx() - total / 2f), ty = (int) Math.max(2, cy() - outerR() - 22);
         for (int i = 0; i < cats.size(); i++) {
             int x = tx + i * (tabW + gapT);
             boolean on = i == cat, hov = mouseX >= x && mouseX < x + tabW && mouseY >= ty && mouseY < ty + tabH;
@@ -140,7 +141,7 @@ public class AttachmentScreen extends Screen {
         // name of the hovered / mounted option + hints
         int show = hovered >= 0 ? hovered : chosen[c.slot()];
         Text name = Text.translatable(c.prefix() + c.ids()[show]);
-        int by = (int) Math.min(height - 26, cy() + outerR() + 12);
+        int by = (int) Math.min(height - 24, cy() + outerR() + 8);
         WeaponDef d = RonWeapons.def(held());
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(d == null ? "" : d.name() + "  \u2022  ").append(name),
                 (int) cx(), by, hovered >= 0 ? 0xFFFFE08A : 0xFFFFFFFF);
@@ -152,7 +153,7 @@ public class AttachmentScreen extends Screen {
         if (preview.isEmpty()) return;
         if (hovered >= 0) preview.set(c.comp(), hovered);
         if (!dragged) yaw += delta * 0.6f;   // slow turntable until the player grabs it
-        float s = innerR() * 1.55f * zoom;
+        float s = innerR() * 2.35f * zoom;
         MatrixStack ms = ctx.getMatrices();
         ms.push();
         ms.translate(cx(), cy(), 300);
@@ -198,7 +199,7 @@ public class AttachmentScreen extends Screen {
     public boolean mouseClicked(double mx, double my, int button) {
         if (cats.isEmpty()) return super.mouseClicked(mx, my, button);
         int tabW = 92, tabH = 16, gapT = 6, total = cats.size() * tabW + (cats.size() - 1) * gapT;
-        int tx = (int) (cx() - total / 2f), ty = (int) Math.max(4, cy() - outerR() - 30);
+        int tx = (int) (cx() - total / 2f), ty = (int) Math.max(2, cy() - outerR() - 22);
         for (int i = 0; i < cats.size(); i++) {
             int x = tx + i * (tabW + gapT);
             if (mx >= x && mx < x + tabW && my >= ty && my < ty + tabH) { cat = i; return true; }

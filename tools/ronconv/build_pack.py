@@ -415,9 +415,10 @@ WEAPONS["sa58"]["grips"] = {"afg": {"socket": "foregrip_socket"}, "vfg": {"socke
                             "cqr": {"socket": "cqr_socket", "hand_socket": "foregrip_socket"}}
 WEAPONS["g19"]["optics"] = optics(("sro_g", "SROPistol_Socket", []), ("rmr_g", "RMRPistol_Socket", []))
 # RoN hangs the GM9 on a socket this G19 mesh does not have: the standard suppressor socket, turned to the bore by the builder
-WEAPONS["g19"]["muzzles"] = [("kkm", "comp_socket", None), ("gm9", "supressor_socket", None)]
+# v13 muzzle fixes: RoN's GM9 socket is missing on this G19 -> hang it on the muzzle itself, its +Y turned to the bore
+WEAPONS["g19"]["muzzles"] = [("kkm", "comp_socket", None), ("gm9", "tag_muzzle", None, {"rot": [0, 0, 180]})]
 WEAPONS["usp45"]["optics"] = optics(("rmr", "RMRPistol_Socket", []), ("sro", "SROPistol_Socket", []))
-WEAPONS["usp45"]["muzzles"] = [("osprey", "supressor_socket", None), ("obsidian", "obs_suppressor_socket", None)]
+WEAPONS["usp45"]["muzzles"] = [("osprey", "supressor_socket", None), ("obsidian", "obs_suppressor_socket", None, {"rear_at": "tag_muzzle"})]
 WEAPONS["python"]["optics"] = []
 WEAPONS["m590"]["optics"] = optics(("venom", "Reflex_Socket", []), ("t1", "Reflex_Socket", []), ("t2", "MicroT2Raised_socket", []))
 WEAPONS["m590"]["muzzles"] = [("choke", "Choke_Socket", None), ("osprey", "supressor_socket", None)]
@@ -984,7 +985,9 @@ def main():
                 print(f"  ! suppressor {sp['mesh']} not exported")
         if w.get("muzzles"):
             meta["muzzles"] = []
-        for mid, msock, hide_bone in w.get("muzzles", []):
+        for entry in w.get("muzzles", []):
+            mid, msock, hide_bone = entry[:3]
+            mopt = entry[3] if len(entry) > 3 else {}
             p = exported(MUZZLE[mid][0], ".psk")
             S = socket_matrix(gun, msock)
             if not p or S is None:
@@ -992,7 +995,19 @@ def main():
                 continue
             m = read_psk(p)
             m.materials = ["#skip " + x if any(k in x.lower() for k in SKIP_MATERIAL) else x for x in m.materials]
-            rot = orient_muzzle(m, S)
+            # every device on its own RoN socket as-is (v10's auto-turn flipped SOCOM / KKM / chokes); explicit fixes only
+            rot = mopt.get("rot", [0, 0, 0])
+            if rot != [0, 0, 0]:
+                rotate_mesh(m, rot)
+            if mopt.get("rear_at"):
+                M = socket_matrix(gun, mopt["rear_at"])
+                if M is not None:
+                    P = np.array(m.points, dtype=np.float64)
+                    Q = (np.c_[P, np.ones(len(P))] @ S.T)[:, :3]
+                    d = M[1, 3] - Q[:, 1].max() - 0.3            # rear face just over the muzzle, not halfway down the slide
+                    dm = S[:3, :3].T @ np.array([0.0, d, 0.0])
+                    m.points = [tuple(float(v) for v in np.array(q) + dm) for q in m.points]
+                    print(f"   muzzle {mid}: moved {d:+.1f} cm along the bore")
             fname = f"muzzle_{mid}"
             print(f"   muzzle {mid:9s}:", write_mesh(m, os.path.join(base, fname + ".ronmesh"), tf, rigid=True), "turned", rot)
             meta["muzzles"].append({"id": mid, "mesh": fname, "socket": msock, "suppressor": MUZZLE[mid][1],
