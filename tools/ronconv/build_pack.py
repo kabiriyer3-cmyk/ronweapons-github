@@ -42,6 +42,10 @@ FX = {
                "count": 6, "vel": [0.0, -1.2, 0.6], "land_sound": "python.casing_drop"},
     "m590": {"casing": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/New_Weapons/Supernova/Shell_Empty", "eject_bone": "tag_brass",
              "eject_on": "m590.pump_back", "vel": [2.0, 1.3, 0.3], "land_sound": "m590.casing_drop"},
+    "usp45": {"casing": f"{SHELL}/9mm_Casing", "eject_bone": "tag_brass", "eject_on": "fire", "vel": [2.2, 1.9, 0.4],
+              "mag_cue": "usp45.mag_drop", "mag_socket": "tag_mag_01_Socket", "land_sound": "usp45.casing_drop"},
+    "sa58": {"casing": f"{SHELL}/762x39mm/762x39mm_Shell", "eject_bone": "tag_brass", "eject_on": "fire", "vel": [2.6, 1.5, 0.5],
+             "mag_cue": "sa58.mag_drop", "mag_socket": "tag_mag_01_Socket", "land_sound": "sa58.casing_drop"},
 }
 
 # Optics: mesh on a gun socket. The ADS eye goes through the centre of the RoN reticle plane ("Optic_Picture" material);
@@ -101,7 +105,9 @@ WEAPONS = {
             {"id": "sro", "mesh": f"{ATT}/Optic_SRO/sk_optic_sro_glock", "socket": "SROPistol_Socket", "style": "dot"},
         ],
         "suppressor": {"mesh": f"{ATT}/Mesh/Pistol_SuppressorSmall", "socket": "supressor_socket"},
-        "light": {"mesh": f"{ATT}/Light_X300/SK_Pistol_light_X300", "socket": "light_socket"},
+        # the G19 light_socket is turned 90 deg against the X300 (RoN's own Glock light is a different model): the X300 lay
+        # sideways across the frame. Turn it about its vertical axis so the lens faces the muzzle (like on the USP socket).
+        "light": {"mesh": f"{ATT}/Light_X300/SK_Pistol_light_X300", "socket": "light_socket", "rot": [0, 0, 90]},
         "tp": {"back": 0.0},
         "actions": {
             "draw":         (f"{G19FP}/arms/fp_g19_add_draw", None),
@@ -260,8 +266,194 @@ for wid, w in WEAPONS.items():
         for part in ("start", "loop", "end"):
             w["actions"].setdefault(f"aff_{kind}_{part}", (f"{AFF}/{name}_Affected_{part}", None))
 
+# ---------------- v9: HK USP45, SA-58 OSW, foregrips
+USPA, USPW = f"{A}/Revised/FirstPerson/Weapons/USP/Arms", f"{A}/Revised/FirstPerson/Weapons/USP/Weapon"
+FALB, FALW = f"{A}/FP/FAL_OSW/body", f"{A}/FP/FAL_OSW/weapon"
+GRIP_MESH = {"afg": f"{ATT}/Mesh/Foregrip_AFG", "vfg": f"{ATT}/Mesh/SK_Grip_VFG", "stubby": f"{ATT}/Mesh/Foregrip_Stubby"}
+SA58_GUN = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/SA-58/SK_Rif_FNFAL_OSW"
+M4_GUN = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M4_Rifle/Mesh/SK_WP_Rifle_M4"
+M590_GUN = "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/M590/Meshes/SK_Shotgun_M590_Assault"
+# Where the left hand sits on each grip: taken from a RoN idle pose made for that grip (hand relative to the grip socket),
+# so one reference serves every gun with the same socket. ref = (arms clip, weapon idle clip, gun mesh, socket)
+SA58_IDLE_W = f"{FALW}/fp_fal_idle_pose_weapon"
+GRIP_REF = {
+    "afg": (f"{FALB}/fp_fal_idle_pose_afg", SA58_IDLE_W, SA58_GUN, "foregrip_socket"),
+    "vfg": (f"{FALB}/fp_fal_idle_pose_vfg", SA58_IDLE_W, SA58_GUN, "foregrip_socket"),
+    "stubby": (f"{FALB}/fp_fal_idle_pose_stubby", SA58_IDLE_W, SA58_GUN, "foregrip_socket"),
+}
+WEAPONS["m4a1"]["grips"] = {
+    "afg": {"socket": "foregrip_socket", "ref": (f"{M4FP}/arms/fp_m4a1_idle_pose_afg", f"{M4FP}/weapon/fp_m4a1_idle_pose_weapon", M4_GUN, "foregrip_socket")},
+    "vfg": {"socket": "foregrip_socket"},
+    "stubby": {"socket": "foregrip_socket"},
+}
+WEAPONS["m590"]["grips"] = {
+    "vfg": {"socket": "foregrip_socket", "ref": (f"{M590A}/fp_m590_idle_pose_vfg", (f"{M590W}/fp_m590_add_fire_weapon", "first"), M590_GUN, "foregrip_socket")},
+}
+WEAPONS["m4a1"]["magcheck"] = {"socket": "mag_01_bullets_socket"}
+WEAPONS["g19"]["magcheck"] = {"socket": "tag_mag_01_bullets_socket"}
+WEAPONS["python"]["magcheck"] = {"socket": "mag_01_bullets_socket"}
+WEAPONS["usp45"] = {
+    "gun": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/USP/Meshes/SK_Pistol_USP",
+    # front sight top z 3.79 (y -9), rear sight top z 3.79 (y 6)
+    "ads_eye": [0.0, None, 3.78],
+    "attachments": [
+        {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/USP/Meshes/SM_USP_Magazine_Static",
+         "file": "mag", "sockets": ["tag_mag_01_Socket", "tag_mag_02_Socket"]},
+    ],
+    "optics": [
+        {"id": "rmr", "mesh": f"{ATT}/Optic_RMR/sk_optic_rmr_pistol", "socket": "RMRPistol_Socket", "style": "dot"},
+        {"id": "sro", "mesh": f"{ATT}/Optic_SRO/sk_optic_sro_glock", "socket": "SROPistol_Socket", "style": "dot"},
+    ],
+    "suppressor": {"mesh": f"{ATT}/Mesh/Pistol_SuppressorSmall", "socket": "supressor_socket"},
+    "light": {"mesh": f"{ATT}/Light_X300/SK_Pistol_light_X300", "socket": "light_socket"},
+    "magcheck": {"socket": "tag_mag_01_bullets_Socket"},
+    "tp": {"back": 0.0},
+    "actions": {
+        # RoN has no USP draw / arms fire clip: the Glock draw (same grip) and idle arms + procedural kick
+        "draw":         (f"{G19FP}/arms/fp_g19_add_draw", None),
+        "idle":         (f"{USPA}/fp_usp_idle_pose", f"{USPW}/fp_usp_idle_pose_weapon"),
+        "idle_empty":   (None, f"{USPW}/fp_usp_idle_pose_empty_weapon"),
+        "run":          (f"{A}/FP/SHARED/pistol_sprint/fp_g19_add_loco_sprint_fwd", None),
+        "fire":         (None, f"{USPW}/fp_usp_add_fire_single_weapon"),
+        "fire_last":    (None, f"{USPW}/fp_usp_add_fire_single_last_weapon"),
+        "reload_tac":   (f"{USPA}/fp_usp_add_tac_reload", f"{USPW}/fp_usp_add_tac_reload_weapon"),
+        "reload_empty": (f"{USPA}/fp_usp_add_spd_reload_empty", f"{USPW}/fp_usp_add_spd_reload_empty_weapon"),
+        "magcheck":     (f"{USPA}/fp_usp_add_mag_check", f"{USPW}/fp_usp_add_mag_check_weapon"),
+    },
+}
+WEAPONS["sa58"] = {
+    "gun": SA58_GUN,
+    # front post tip z 7.09 (y -37), rear aperture ~7.1 (y 9); eye 6 cm behind the aperture
+    "ads_eye": [0.0, 15.0, 7.09],
+    "attachments": [
+        {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/SA-58/SM_Rif_FNFAL_OSW_mag_static",
+         "file": "mag", "sockets": ["tag_mag_01_Socket", "tag_mag_02_Socket"]},
+        {"mesh": "ReadyOrNot/Content/ReadyOrNot/Assets/Weapons/SA-58/SM_Rif_FNFAL_OSW_bullet_fmj_static",
+         "file": "rounds", "sockets": ["tag_mag_01_bullets_Socket", "tag_mag_02_bullets_Socket"]},
+    ],
+    "optics": [
+        {"id": "exps3", "mesh": f"{ATT}/Optic_EPXS3/Holosight_EXPS3", "socket": "EXPS3_socket", "style": "holo"},
+        {"id": "m5b", "mesh": f"{ATT}/Optic_M5B/sk_optic_m5", "socket": "M5B_Socket", "style": "dot"},
+        {"id": "t2", "mesh": f"{ATT}/Optic_MicroT2/SK_MicroT2_TallMount", "socket": "MicroT2Raised_Socket", "style": "dot"},
+    ],
+    "suppressor": {"mesh": f"{ATT}/Suppressor_SOCOM338/sk_suppressor_socom338", "socket": "socom338_socket"},
+    # the SA-58 light_socket is the M4 one turned 180 deg about the vertical: turn the M600V back so it matches the M4
+    "light": {"mesh": f"{ATT}/Flashlight_M600V/sk_illum_flashlight_M600V", "socket": "light_socket", "rot": [0, 180, 0]},
+    "grips": {"afg": {"socket": "foregrip_socket"}, "vfg": {"socket": "foregrip_socket"}, "stubby": {"socket": "foregrip_socket"}},
+    "magcheck": {"socket": "tag_mag_01_bullets_Socket"},
+    "tp": {"back": 0.32},
+    "actions": {
+        "draw":         (f"{FALB}/fp_fal_add_draw_first", f"{FALW}/fp_fal_add_draw_first_weapon"),
+        "idle":         (f"{FALB}/fp_fal_idle_pose", SA58_IDLE_W),
+        "idle_empty":   (None, f"{FALW}/fp_fal_idle_pose_empty_weapon"),
+        # no exportable arms fire / walk clips: idle arms + procedural kick, the bolt still cycles
+        "fire":         (None, f"{FALW}/fp_fal_add_fire_weapon"),
+        "fire_last":    (None, f"{FALW}/fp_fal_add_fire_empty_weapon"),
+        "reload_tac":   (f"{FALB}/fp_fal_add_tac_reload", f"{FALW}/fp_fal_add_tac_reload_weapon"),
+        "reload_empty": (f"{FALB}/fp_fal_add_spd_reload_empty", f"{FALW}/fp_fal_add_spd_reload_empty_weapon"),
+        "magcheck":     (f"{FALB}/fp_fal_add_mag_check", f"{FALW}/fp_fal_add_mag_check_weapon"),
+        "select_auto":  (f"{FALB}/fp_fal_add_fire_select_auto", None),
+        "select_semi":  (f"{FALB}/fp_fal_add_fire_select_semi", None),
+    },
+}
+for wid in ("usp45", "sa58"):
+    for kind, name in (("flash", "Flashbang"), ("gas", "CS_Gas"), ("sting", "Stinger")):
+        for part in ("start", "loop", "end"):
+            WEAPONS[wid]["actions"].setdefault(f"aff_{kind}_{part}", (f"{AFF}/{name}_Affected_{part}", None))
+
 RETICLE_RGB = (255, 36, 24)
 SKIP_MATERIAL = ("glass", "invisible")
+
+
+def quat_mat(q, pos):
+    x, y, z, w = q
+    m = np.eye(4)
+    m[:3, :3] = [[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                 [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                 [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]]
+    m[:3, 3] = pos
+    return m
+
+
+def pose_globals(mesh, spec, frame=0):
+    """globals + locals (pos, quat in the runtime convention) of one frame of a clip on a mesh; spec = path or (path, first|last)"""
+    rel, pick = (spec, None) if isinstance(spec, str) else spec
+    p = exported(rel, ".psa")
+    if not p:
+        return None, None
+    a = read_psa(p)
+    if pick == "last":
+        frame = a.frames - 1
+    idx = {n.lower(): j for j, n in enumerate(a.bones)}
+    locs, _ = bind_data(mesh)
+    G, L = [], []
+    for i, b in enumerate(mesh.bones):
+        j = idx.get(b.name.lower())
+        if j is None:
+            pos, q = locs[i]
+        else:
+            pos = np.array(a.pos[frame, j], dtype=np.float64)
+            q = np.array(a.quat[frame, j], dtype=np.float64)
+            if j != 0:
+                q[:3] *= -1
+            q = q / np.linalg.norm(q)
+        M = quat_mat(q, pos)
+        G.append(M if b.parent < 0 else G[b.parent] @ M)
+        L.append((np.array(pos, dtype=np.float64), np.array(q, dtype=np.float64)))
+    return G, L
+
+
+def bone_index(mesh, name):
+    for i, b in enumerate(mesh.bones):
+        if b.name.lower() == name.lower():
+            return i
+    return -1
+
+
+def descendants(mesh, root):
+    out, keep = [], {root}
+    for i, b in enumerate(mesh.bones):
+        if b.parent in keep:
+            keep.add(i)
+            out.append(i)
+    return out
+
+
+def grip_hand(arms, ref):
+    """left hand relative to the grip socket (4x4, cm) and the finger locals of a RoN grip idle pose"""
+    arms_clip, weapon_clip, gun_rel, socket = ref
+    GA, LA = pose_globals(arms, arms_clip)
+    gun_p = exported(gun_rel, ".psk")
+    if GA is None or not gun_p:
+        return None
+    gun = read_psk(gun_p)
+    GG, _ = pose_globals(gun, weapon_clip)
+    if GG is None:
+        _, inv = bind_data(gun)
+        GG = [np.linalg.inv(m) for m in inv]
+    si = bone_index(gun, socket)
+    wr, hand = bone_index(arms, "weapon_right"), bone_index(arms, "hand_LE")
+    if si < 0:
+        return None
+    off = np.linalg.inv(GA[wr] @ GG[si]) @ GA[hand]
+    fingers = []
+    for i in descendants(arms, hand):
+        pos, q = LA[i]
+        fingers.append([arms.bones[i].name] + [round(float(v), 5) for v in list(pos) + list(q)])
+    return off, fingers
+
+
+def rotate_mesh(m, deg):
+    """turn a rigid attachment mesh in its own space (x, y, z degrees, applied x then y then z)"""
+    rx, ry, rz = [np.radians(d) for d in deg]
+    Rx = np.array([[1, 0, 0], [0, np.cos(rx), -np.sin(rx)], [0, np.sin(rx), np.cos(rx)]])
+    Ry = np.array([[np.cos(ry), 0, np.sin(ry)], [0, 1, 0], [-np.sin(ry), 0, np.cos(ry)]])
+    Rz = np.array([[np.cos(rz), -np.sin(rz), 0], [np.sin(rz), np.cos(rz), 0], [0, 0, 1]])
+    R = Rz @ Ry @ Rx
+    m.points = [tuple(float(v) for v in R @ np.array(p, dtype=np.float64)) for p in m.points]
+    if m.normals is not None:
+        m.normals = [tuple(float(v) for v in R @ np.array(n, dtype=np.float64)) for n in m.normals]
+    return R
 
 
 def socket_matrix(gun, name):
@@ -598,15 +790,61 @@ def main():
             if p and socket_matrix(gun, lt["socket"]) is not None:
                 m = read_psk(p)
                 m.materials = ["#skip " + x if any(k in x.lower() for k in SKIP_MATERIAL) else x for x in m.materials]
-                lens = [0.0, 0.0, 0.0]
-                for i, b in enumerate(m.bones):
-                    if b.name.lower() == "light":
-                        _, inv_l = bind_data(m)
-                        lens = [round(float(v), 3) for v in np.linalg.inv(inv_l[i])[:3, 3]]
-                print("   light:", write_mesh(m, os.path.join(base, "light.ronmesh"), tf, rigid=True), "lens", lens)
+                if lt.get("rot"):
+                    rotate_mesh(m, lt["rot"])
+                # beam origin: centre of the light's front face (furthest towards the muzzle, gun -Y), in socket space
+                S = socket_matrix(gun, lt["socket"])
+                P = np.array(m.points, dtype=np.float64)
+                Pg = (np.c_[P, np.ones(len(P))] @ S.T)[:, :3]
+                front = Pg[Pg[:, 1] < Pg[:, 1].min() + 0.4].mean(axis=0)
+                lens = [round(float(v), 3) for v in (np.linalg.inv(S) @ np.r_[front, 1.0])[:3]]
+                print("   light:", write_mesh(m, os.path.join(base, "light.ronmesh"), tf, rigid=True), "lens", lens,
+                      "gun-space y", round(float(Pg[:, 1].min()), 1), "..", round(float(Pg[:, 1].max()), 1),
+                      "x", round(float(Pg[:, 0].min()), 1), "..", round(float(Pg[:, 0].max()), 1))
                 meta["light"] = {"mesh": "light", "socket": lt["socket"], "lens": lens}
             else:
                 print(f"  ! light {lt['mesh']} or socket {lt['socket']} missing")
+        if w.get("grips"):
+            meta["grips"] = {}
+        for gid, gs in w.get("grips", {}).items():
+            p = exported(GRIP_MESH[gid], ".psk")
+            if not p or socket_matrix(gun, gs["socket"]) is None:
+                print(f"  ! grip {gid}: mesh or socket {gs['socket']} missing")
+                continue
+            hand = grip_hand(arms, gs.get("ref", GRIP_REF[gid]))
+            if hand is None:
+                print(f"  ! grip {gid}: reference pose missing")
+                continue
+            off, fingers = hand
+            gm = read_psk(p)
+            print(f"   grip {gid:6s}:", write_mesh(gm, os.path.join(base, f"grip_{gid}.ronmesh"), tf, rigid=True),
+                  "hand off", np.round(off[:3, 3], 1), len(fingers), "fingers")
+            meta["grips"][gid] = {"mesh": f"grip_{gid}", "socket": gs["socket"],
+                                  "hand": [round(float(v), 5) for v in off.T.flatten()], "fingers": fingers}
+        mc = w.get("magcheck")
+        if mc and bone_index(gun, mc["socket"]) >= 0:
+            window = None
+            spec = w["actions"].get("magcheck", (None, None))[1]
+            if spec:
+                rel = spec if isinstance(spec, str) else spec[0]
+                pa = exported(rel, ".psa")
+                if pa:
+                    an = read_psa(pa)
+                    names = [n.lower() for n in an.bones]
+                    # the magazine bone itself (its rounds bone only twitches); else the socket's nearest animated parent
+                    bi = bone_index(gun, "tag_mag_01")
+                    if bi < 0 or gun.bones[bi].name.lower() not in names:
+                        bi = bone_index(gun, mc["socket"])
+                        while bi >= 0 and gun.bones[bi].name.lower() not in names:
+                            bi = gun.bones[bi].parent
+                    if bi > 0:
+                        tr = an.pos[:, names.index(gun.bones[bi].name.lower())]
+                        d = np.linalg.norm(tr - tr[0], axis=1)
+                        moved = np.nonzero(d > 1.5)[0]
+                        if len(moved):
+                            window = [round(max(0.0, moved[0] / an.fps - 0.05), 2), round(moved[-1] / an.fps + 0.05, 2)]
+                            print(f"   magcheck: {gun.bones[bi].name} moves {window[0]}..{window[1]} s (max {d.max():.1f} cm)")
+            meta["magcheck"] = {"socket": mc["socket"], "offset": mc.get("offset", [0.0, 0.0, 1.4]), "window": window}
         aa = w.get("arms_attachment")
         if aa:
             p = exported(aa["mesh"], ".psk")

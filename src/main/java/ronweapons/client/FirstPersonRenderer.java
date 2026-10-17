@@ -34,8 +34,13 @@ public final class FirstPersonRenderer {
     private record Ads(Vector3f t, Quaternionf q) {}
     private static final Map<String, Ads> adsByOptic = new HashMap<>();
     private static long lastNs;
-    private static float ads, kick, kickScale;
+    private static float ads, kick, kickScale, gripWeight;
+    private static final float GRIP_TIME = 0.2f;
+    private static GunRig.Grip lastGrip;
     private static String warnedFor;
+
+    /** 0 hip .. 1 fully aimed down the sights */
+    public static float adsAmount() { return ads; }
 
     /** Procedural kick for weapons whose RoN fire clip is missing or mild (WeaponDef.viewKick). */
     public static void kick(float scale) {
@@ -67,8 +72,37 @@ public final class FirstPersonRenderer {
 
         resetToBind(rig);
         anim.pose(rig, alp, alr, wlp, wlr, tap, tar, twp, twr);
+        // foregrip: the left hand leaves the handguard for the grip whenever it is not busy (reloads, mag checks, draw ...)
+        GunRig.Grip grip = rig.grips.get(RonWeapons.gripId(mc.player.getMainHandStack()));
+        gripWeight += ((grip != null && anim.gripFree()) ? 1 : -1) * dt / GRIP_TIME;
+        gripWeight = Math.max(0, Math.min(1, gripWeight));
+        if (grip != null) lastGrip = grip;
+        GunRig.Grip g = grip != null ? grip : lastGrip != null && rig.grips.containsValue(lastGrip) ? lastGrip : null;
+        float gw = g == null ? 0 : gripWeight * gripWeight * (3 - 2 * gripWeight);
+        if (g != null && gw > 0.001f) {
+            int[] fb = g.fingerBones();
+            Quaternionf qa = new Quaternionf(), qb = new Quaternionf();
+            for (int i = 0; i < fb.length; i++) {
+                int b = fb[i];
+                for (int k = 0; k < 3; k++) alp[b * 3 + k] += (g.fingerPos()[i * 3 + k] - alp[b * 3 + k]) * gw;
+                qa.set(alr[b * 4], alr[b * 4 + 1], alr[b * 4 + 2], alr[b * 4 + 3]);
+                qb.set(g.fingerRot()[i * 4], g.fingerRot()[i * 4 + 1], g.fingerRot()[i * 4 + 2], g.fingerRot()[i * 4 + 3]);
+                qa.slerp(qb, gw).normalize();
+                alr[b * 4] = qa.x; alr[b * 4 + 1] = qa.y; alr[b * 4 + 2] = qa.z; alr[b * 4 + 3] = qa.w;
+            }
+        }
         rig.arms.globals(alp, alr, armsG);
         rig.gun.globals(wlp, wlr, gunG);
+        if (g != null && gw > 0.001f && rig.handLE >= 0) {
+            // move the whole left arm rigidly so the hand lands on the grip (follows the gun: recoil, pump, sway)
+            Matrix4f target = new Matrix4f(armsG[rig.attachBone]).mul(gunG[g.socket()]).mul(g.hand());
+            Matrix4f hand = armsG[rig.handLE];
+            Vector3f ph = hand.getTranslation(new Vector3f()), pt = target.getTranslation(new Vector3f());
+            Quaternionf qh = hand.getNormalizedRotation(new Quaternionf()), qt = target.getNormalizedRotation(new Quaternionf());
+            Matrix4f blended = new Matrix4f().translation(ph.lerp(pt, gw)).rotate(qh.slerp(qt, gw));
+            Matrix4f d = blended.mul(new Matrix4f(hand).invert());
+            for (int b : rig.leftArm) armsG[b].mulLocal(d);
+        }
 
         Matrix4f view = viewOf(rig);
         Matrix4f attach = new Matrix4f(view).mul(armsG[rig.attachBone]);
@@ -139,7 +173,35 @@ public final class FirstPersonRenderer {
             renderOnSocket(rig.suppressor.mesh(), rig.suppressor.socket(), attach, entry, consumers, light);
         }
         if (rig.light != null) renderOnSocket(rig.light.mesh(), rig.light.socket(), attach, entry, consumers, light);
+        if (grip != null) renderOnSocket(grip.mesh(), grip.socket(), attach, entry, consumers, light);
+        if (def != null && rig.magCheck != null && anim.current().equals("magcheck")) magCheckText(rig, def, anim, attach, matrices, consumers);
         return true;
+    }
+
+    /** "rounds / capacity" floating on the magazine while RoN's mag check has it out, moving with it */
+    private static void magCheckText(GunRig rig, WeaponDef def, GunAnimator anim, Matrix4f attach, MatrixStack matrices, VertexConsumerProvider consumers) {
+        GunRig.MagCheck mc = rig.magCheck;
+        float t = anim.time(), dur = anim.duration("magcheck");
+        float t0 = mc.window() != null ? mc.window()[0] : dur * 0.22f, t1 = mc.window() != null ? mc.window()[1] : dur * 0.82f;
+        float a = Math.min(Math.min(1f, (t - t0) / 0.15f), (t1 - t) / 0.15f);
+        if (a <= 0.02f) return;
+        float[] o = mc.offset();
+        Vector3f p = new Matrix4f(attach).mul(gunG[mc.socket()]).transformPosition(new Vector3f(o[0], o[1], o[2]));
+        MinecraftClient mc2 = MinecraftClient.getInstance();
+        net.minecraft.client.font.TextRenderer tr = mc2.textRenderer;
+        int rounds = RonWeaponsClient.localAmmo(), cap = def.magSize();
+        String txt = rounds + "/" + cap;
+        int alpha = (int) (Math.min(1f, a) * 255) << 24;
+        int color = (rounds <= cap / 4 ? 0xFF6A5A : rounds >= cap ? 0xE8FFE8 : 0xFFFFFF) | alpha;
+        matrices.push();
+        matrices.translate(p.x, p.y, p.z);
+        float sc = 0.0011f;
+        matrices.scale(sc, -sc, sc);
+        Matrix4f m = matrices.peek().getPositionMatrix();
+        float w = tr.getWidth(txt);
+        tr.draw(txt, -w / 2f, -4f, color, false, m, consumers, net.minecraft.client.font.TextRenderer.TextLayerType.SEE_THROUGH,
+                (int) (Math.min(1f, a) * 0x70) << 24, 0xF000F0);
+        matrices.pop();
     }
 
     /** Optics / suppressors: skeletal attachment meshes placed rigidly in socket space, like UE attaches the component. */

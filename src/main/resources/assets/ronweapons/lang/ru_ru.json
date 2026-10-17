@@ -55,5 +55,22 @@
   "ronweapons.light.on": "%s: фонарь ВКЛ",
   "ronweapons.light.off": "%s: фонарь ВЫКЛ",
   "ronweapons.light.none": "На %s нет фонаря",
-  "ronweapons.nvg.none": "Сначала надень ПНВ на голову"
+  "ronweapons.nvg.none": "Сначала надень ПНВ на голову",
+  "item.ronweapons.usp45": "HK USP45",
+  "item.ronweapons.sa58": "SA-58 OSW",
+  "key.ronweapons.grip": "Рукоятка на цевьё",
+  "ronweapons.grip": "%s: %s",
+  "ronweapons.grip.none": "без рукоятки",
+  "ronweapons.grip.afg": "AFG",
+  "ronweapons.grip.vfg": "VFG",
+  "ronweapons.grip.stubby": "Stubby",
+  "ronweapons.grip.unsupported": "На %s рукоятка не ставится",
+  "ronweapons.hud.auto": "АВТО",
+  "ronweapons.hud.single": "ОДИНОЧ.",
+  "ronweapons.hud.semi": "ПОЛУАВТ.",
+  "ronweapons.hud.supp": "Глушитель",
+  "ronweapons.hud.light_on": "ФОНАРЬ",
+  "ronweapons.hud.light_off": "фонарь",
+  "subtitles.ronweapons.usp45.fire": "Выстрел USP45",
+  "subtitles.ronweapons.sa58.fire": "Выстрел SA-58"
 }

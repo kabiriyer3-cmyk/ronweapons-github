@@ -61,6 +61,9 @@ public final class RonWeapons implements ModInitializer {
             ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
     public static final ComponentType<Boolean> SUPPRESSOR = Registry.register(Registries.DATA_COMPONENT_TYPE, id("suppressor"),
             ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
+    /** foregrip index into WeaponDef.grips (0 = none) */
+    public static final ComponentType<Integer> GRIP = Registry.register(Registries.DATA_COMPONENT_TYPE, id("grip"),
+            ComponentType.<Integer>builder().codec(Codec.INT).packetCodec(PacketCodecs.VAR_INT).build());
     /** weapon light switched on */
     public static final ComponentType<Boolean> LIGHT = Registry.register(Registries.DATA_COMPONENT_TYPE, id("light"),
             ComponentType.<Boolean>builder().codec(Codec.BOOL).packetCodec(PacketCodecs.BOOL).build());
@@ -154,6 +157,18 @@ public final class RonWeapons implements ModInitializer {
         WeaponDef d = def(stack);
         int o = stack.getOrDefault(OPTIC, 0);
         return d == null || o < 0 || o >= d.opticCount() ? 0 : o;
+    }
+
+    public static int grip(ItemStack stack) {
+        WeaponDef d = def(stack);
+        int g = stack.getOrDefault(GRIP, 0);
+        return d == null || g < 0 || g >= d.gripCount() ? 0 : g;
+    }
+
+    /** foregrip id on the stack ("none" without one) */
+    public static String gripId(ItemStack stack) {
+        WeaponDef d = def(stack);
+        return d == null ? "none" : d.grips()[grip(stack)];
     }
 
     public static boolean suppressed(ItemStack stack) {
@@ -264,6 +279,10 @@ public final class RonWeapons implements ModInitializer {
             case ActionPayload.CYCLE_OPTIC -> {
                 if (busy || d.opticCount() < 2) return;
                 stack.set(OPTIC, (optic(stack) + 1) % d.opticCount());
+            }
+            case ActionPayload.CYCLE_GRIP -> {
+                if (busy || d.gripCount() < 2) return;
+                stack.set(GRIP, (grip(stack) + 1) % d.gripCount());
             }
             default -> { }
         }

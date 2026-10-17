@@ -61,9 +61,10 @@ public final class ItemModelRenderer {
         String opticId = def == null ? "iron" : def.optics()[RonWeapons.optic(stack)];
         GunRig.Optic optic = rig.optics.get(opticId);
         boolean supp = RonWeapons.suppressed(stack) && rig.suppressor != null;
-        String key = rigId + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp;
+        GunRig.Grip grip = rig.grips.get(RonWeapons.gripId(stack));
+        String key = rigId + "|" + (optic == null ? "iron" : opticId) + "|" + supp + "|" + tp + "|" + (grip == null ? "-" : grip.id());
         Baked b = CACHE.get(key);
-        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp, rigId.equals("shield")));
+        if (b == null || b.rig() != rig) CACHE.put(key, b = bake(rig, optic, supp, tp, rigId.equals("shield"), grip));
 
         matrices.push();
         switch (mode) {
@@ -94,7 +95,7 @@ public final class ItemModelRenderer {
     }
 
     /** Bakes once per rig + attachment state. Icons fit the whole silhouette into one item unit; third person keeps real size. */
-    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp, boolean shield) {
+    private static Baked bake(GunRig rig, GunRig.Optic optic, boolean supp, boolean tp, boolean shield, GunRig.Grip grip) {
         List<RonMesh> meshes = new ArrayList<>();
         List<Matrix4f> bases = new ArrayList<>();
         List<boolean[]> hides = new ArrayList<>();
@@ -105,6 +106,7 @@ public final class ItemModelRenderer {
         if (optic != null) { meshes.add(optic.mesh()); bases.add(rig.gun.bindGlobal[optic.socket()]); hides.add(null); }
         if (supp) { meshes.add(rig.suppressor.mesh()); bases.add(rig.gun.bindGlobal[rig.suppressor.socket()]); hides.add(null); }
         if (rig.light != null) { meshes.add(rig.light.mesh()); bases.add(rig.gun.bindGlobal[rig.light.socket()]); hides.add(null); }
+        if (grip != null) { meshes.add(grip.mesh()); bases.add(rig.gun.bindGlobal[grip.socket()]); hides.add(null); }
 
         Matrix4f axes = tp ? (shield ? SHIELD_TP_AXES : TP_AXES) : AXES;
         if (!tp) {

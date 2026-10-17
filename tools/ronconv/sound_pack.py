@@ -14,6 +14,8 @@ import soundfile as sf
 
 BANK = r"D:\SteamLibrary\steamapps\common\Ready Or Not\ReadyOrNot\Content\FMOD\Desktop\Weapons.bank"
 VGM = r"C:\Modding\tools\vgmstream\vgmstream-cli.exe"
+if not os.path.exists(VGM):
+    VGM = os.path.join(os.path.expanduser("~"), "Downloads", "fmodel", "Output", ".data", "vgmstream-cli.exe")
 PRIV = r"C:\Modding\ron-to-minecraft\private"
 CACHE = os.path.join(PRIV, "sound_cache")
 OUT = os.path.join(PRIV, "sound_pack")
@@ -132,6 +134,39 @@ def motion(rel, bone, thr=1.5):
     back = np.nonzero(dl[k0:] < thr)[0]
     k1 = k0 + back[0] if len(back) else a.frames - 1
     return k0 / a.fps, k1 / a.fps
+
+
+def mag_times(rel):
+    """(mag out, new mag seated, old mag stowed or None) from a RoN reload weapon clip"""
+    def safe(bone):
+        try:
+            return motion(rel, bone)
+        except ValueError:
+            return None
+    m1 = safe("tag_mag_01")
+    m2 = safe("tag_mag_02")
+    if not m1:
+        return None
+    if m2:
+        return m1[0], m2[1], m1[1]
+    return m1[0], m1[1], None
+
+
+def bolt_time(rel, bone, after):
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from actorx import read_psa
+    path = os.path.join(PRIV, "export", *rel.split("/")) + ".psa"
+    if not os.path.exists(path):
+        return None
+    a = read_psa(path)
+    names = [n.lower() for n in a.bones]
+    if bone.lower() not in names:
+        return None
+    pos = a.pos[:, names.index(bone.lower())]
+    d = np.linalg.norm(pos - pos[0], axis=1)
+    k = np.nonzero((d > 1.0) & (np.arange(len(d)) / a.fps > after))[0]
+    return k[0] / a.fps if len(k) else None
 
 
 def shield_reloads(base_id):
@@ -338,8 +373,75 @@ def main():
     p.event("light.toggle", [p.write("light", f"click_{i}", load(f"weap_ump45_switch_0{i}", 0, "SWAT"), mono=True) for i in (1, 2)])
     p.event("fx.tinnitus", [p.write("fx", "tinnitus", tinnitus())])
 
+    try:
+        # ---------------- HK USP45 (timings from the RoN weapon clips: magazine / slide motion)
+        p.gunshots("usp45", [[(f"USP-{k + 1}", 0.85, 0), (f"USP_MidShot{k + 1}", 0.45, 0), (f"USP_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
+                   [[(f"USP_MidShot{k + 1}", 1.0, 0), (f"USP_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)])
+        p.gunshots("usp45", [[(f"USP-{k + 1}-Suppressed", 0.9, 0), (f"USP_Suppressed_Reflection_EXT_Base_0{k % 2 + 1}", 0.6, 0)] for k in range(4)],
+                   [[(f"USP-{k + 1}-Suppressed", 1.0, 0), (f"USP_Suppressed_Reflection_EXT_Base_0{k % 2 + 1}", 0.5, 0)] for k in range(4)],
+                   suffix="_supp", attenuation=24)
+        p.event("usp45.dryfire", [p.write("usp45", "dryfire", load("weap_g19_dry_fire_01"))], "subtitles.ronweapons.dryfire")
+        p.event("usp45.reload", [p.write("usp45", "reload_3p", load("USP_ReloadNormal_MagIn"), mono=True)], "subtitles.ronweapons.m4a1.reload", attenuation=20)
+        p.foley("usp45", {
+            "reload_start": ["USP_ReloadNormal_Start"], "magout": ["USP_ReloadNormal_MagOut"], "magin": ["USP_ReloadNormal_MagIn"],
+            "empty_start": ["USP_ReloadQuick&Empty_Start"], "empty_magout": ["USP_ReloadQuick&Empty_MagOut"],
+            "empty_magin": ["USP_ReloadQuick&Empty_MagIn"], "slide_release": ["USP_ReloadEmpty_SlideRelease"],
+            "mag_drop": ["weap_rifle_mag_drop_01"], "mag_stow": ["Cloth-MagPouchStow"], "check": ["USP_Ammo_Check"],
+        })
+        UW = "ReadyOrNot/Content/ReadyOrNot/Animations/Revised/FirstPerson/Weapons/USP/Weapon"
+        c = {"magcheck": [[0.0, "usp45.check"]]}
+        t = mag_times(f"{UW}/fp_usp_add_tac_reload_weapon")
+        if t:
+            c["reload_tac"] = [[0.0, "usp45.reload_start"], [round(t[0], 2), "usp45.magout"], [round(t[1], 2), "usp45.magin"]]
+            if t[2]:
+                c["reload_tac"].append([round(t[2], 2), "usp45.mag_stow"])
+            print(f"  usp45 tac: out {t[0]:.2f} in {t[1]:.2f}")
+        t = mag_times(f"{UW}/fp_usp_add_spd_reload_empty_weapon")
+        if t:
+            sl = bolt_time(f"{UW}/fp_usp_add_spd_reload_empty_weapon", "tag_slide", t[1]) or t[1] + 0.3
+            c["reload_empty"] = [[0.0, "usp45.empty_start"], [round(t[0], 2), "usp45.empty_magout"], [round(t[0] + 0.3, 2), "usp45.mag_drop", 0.5],
+                                 [round(t[1], 2), "usp45.empty_magin"], [round(sl, 2), "usp45.slide_release"]]
+            print(f"  usp45 empty: out {t[0]:.2f} in {t[1]:.2f} slide {sl:.2f}")
+        cues["usp45"] = {k: sorted(v) for k, v in c.items()}
+
+        # ---------------- SA-58 OSW
+        p.gunshots("sa58", [[(f"SA58-{k + 1}", 0.8, 0), (f"SA58_MidReflection_0{k + 1}", 0.55, 0), (f"SA58_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)],
+                   [[(f"SA58_MidReflection_0{k + 1}", 1.0, 0), (f"SA58_MidTail_0{k % 2 + 1}", 1.0, 0)] for k in range(4)], attenuation=112)
+        p.gunshots("sa58", [[(f"SA58-{k + 1}_Suppressed", 0.9, 0), (f"SA58_Relfection_Int_Suppressed_Base_0{k % 2 + 1}", 0.6, 0)] for k in range(4)],
+                   [[(f"SA58-{k + 1}_Suppressed", 1.0, 0), (f"SA58_Relfection_Int_Suppressed_Base_0{k % 2 + 1}", 0.5, 0)] for k in range(4)],
+                   suffix="_supp", attenuation=40)
+        p.event("sa58.dryfire", [p.write("sa58", "dryfire", load("SA58_Empty_Trigger"))], "subtitles.ronweapons.dryfire")
+        p.event("sa58.reload", [p.write("sa58", "reload_3p", load("SA58_ReloadNormalMagIn"), mono=True)], "subtitles.ronweapons.m4a1.reload", attenuation=24)
+        p.foley("sa58", {
+            "draw": ["SA58_firstDraw"], "reload_start": ["SA58_ReloadNormalStart"], "magout": ["SA58_ReloadNormalMagOut"],
+            "magin": ["SA58_ReloadNormalMagIn"], "empty_start": ["SA58_ReloadQuick&DryStart"], "empty_magout": ["SA58_ReloadQuick&DryMagOut"],
+            "empty_magin": ["sa58_ReloadQuick&DryMagIn"], "boltpull": ["SA58_ReloadQuick&DryBoltpull"],
+            "mag_drop": ["weap_rifle_mag_drop_01"], "mag_stow": ["Cloth-MagPouchStow"], "check": ["SA58_AmmoCheck"],
+        })
+        FW = "ReadyOrNot/Content/ReadyOrNot/Animations/FP/FAL_OSW/weapon"
+        c = {"draw": [[0.0, "sa58.draw"]], "magcheck": [[0.0, "sa58.check"]]}
+        t = mag_times(f"{FW}/fp_fal_add_tac_reload_weapon")
+        if t:
+            c["reload_tac"] = [[0.0, "sa58.reload_start"], [round(t[0], 2), "sa58.magout"], [round(t[1], 2), "sa58.magin"]]
+            if t[2]:
+                c["reload_tac"].append([round(t[2], 2), "sa58.mag_stow"])
+            print(f"  sa58 tac: out {t[0]:.2f} in {t[1]:.2f}")
+        t = mag_times(f"{FW}/fp_fal_add_spd_reload_empty_weapon")
+        if t:
+            bp_ = bolt_time(f"{FW}/fp_fal_add_spd_reload_empty_weapon", "tag_bolt", t[1]) or t[1] + 0.4
+            c["reload_empty"] = [[0.0, "sa58.empty_start"], [round(t[0], 2), "sa58.empty_magout"], [round(t[0] + 0.3, 2), "sa58.mag_drop", 0.6],
+                                 [round(t[1], 2), "sa58.empty_magin"], [round(bp_, 2), "sa58.boltpull"]]
+            print(f"  sa58 empty: out {t[0]:.2f} in {t[1]:.2f} bolt {bp_:.2f}")
+        cues["sa58"] = {k: sorted(v) for k, v in c.items()}
+
+    except (FileNotFoundError, OSError, KeyError) as e:
+        print("  ! v9 sounds skipped (RoN sample decoder missing?):", e)
+        for k in [k for k in p.events if k.startswith(("usp45.", "sa58."))]:
+            del p.events[k]
+        cues.pop("usp45", None); cues.pop("sa58", None)
+
     # brass hitting the floor (client debris)
-    for wid, kind in (("m4a1", "556"), ("g19", "9mm"), ("python", "9mm"), ("m590", "SH")):
+    for wid, kind in (("m4a1", "556"), ("g19", "9mm"), ("python", "9mm"), ("m590", "SH")) + ((("usp45", "9mm"), ("sa58", "556")) if "usp45" in cues else ()):
         p.event(f"{wid}.casing_drop", [p.write(wid, f"casing_drop_{i}", load(f"{kind}Concrete_shell_drop0{i}"), mono=True) for i in range(1, 6)])
 
     os.makedirs(os.path.join(OUT, "assets", "ronweapons"), exist_ok=True)

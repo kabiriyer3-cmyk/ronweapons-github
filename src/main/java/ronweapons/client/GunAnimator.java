@@ -44,6 +44,14 @@ public final class GunAnimator {
 
     public float time() { return curT; }
 
+    /** the left hand can hold a foregrip: everything except actions that need it elsewhere (mags, draw, gear, reactions) */
+    public boolean gripFree() {
+        if (procDraw > PROC_DRAW * 0.5f) return false;
+        String a = cur;
+        return !(a.startsWith("reload") || a.equals("magcheck") || a.equals("draw") || a.startsWith("nvg") || a.startsWith("aff_")
+                || a.equals("restrain") || a.startsWith("throw") || a.startsWith("bash"));
+    }
+
     /** the raised-shield pose is fully up (ADS allowed) */
     public boolean raisedPose() { return upPose(cur) && !cur.equals("raise") || (cur.startsWith("fire") && raised); }
 
@@ -60,7 +68,7 @@ public final class GunAnimator {
 
     public boolean affected() { return cur.startsWith("aff_"); }
 
-    private float duration(String a) {
+    public float duration(String a) {
         if (rig == null) return a.startsWith("reload") ? 2.5f : 0.3f;
         GunRig.Action act = rig.actions.get(a);
         return act == null ? 0f : act.duration();

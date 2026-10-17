@@ -18,6 +18,7 @@ public record ActionPayload(byte action) implements CustomPayload {
     public static final byte SHIELD_BASH = 8;
     public static final byte THROW_OVER = 9;
     public static final byte THROW_UNDER = 10;
+    public static final byte CYCLE_GRIP = 11;
 
     public static final Id<ActionPayload> ID = new Id<>(RonWeapons.id("action"));
     public static final PacketCodec<RegistryByteBuf, ActionPayload> CODEC =

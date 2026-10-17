@@ -55,5 +55,22 @@
   "ronweapons.light.on": "%s: light ON",
   "ronweapons.light.off": "%s: light OFF",
   "ronweapons.light.none": "%s has no light mount",
-  "ronweapons.nvg.none": "Put the night vision goggles on your head first"
+  "ronweapons.nvg.none": "Put the night vision goggles on your head first",
+  "item.ronweapons.usp45": "HK USP45",
+  "item.ronweapons.sa58": "SA-58 OSW",
+  "key.ronweapons.grip": "Foregrip",
+  "ronweapons.grip": "%s: %s",
+  "ronweapons.grip.none": "no grip",
+  "ronweapons.grip.afg": "AFG",
+  "ronweapons.grip.vfg": "VFG",
+  "ronweapons.grip.stubby": "Stubby",
+  "ronweapons.grip.unsupported": "%s takes no foregrip",
+  "ronweapons.hud.auto": "AUTO",
+  "ronweapons.hud.single": "SEMI",
+  "ronweapons.hud.semi": "SEMI",
+  "ronweapons.hud.supp": "Suppressor",
+  "ronweapons.hud.light_on": "LIGHT",
+  "ronweapons.hud.light_off": "light",
+  "subtitles.ronweapons.usp45.fire": "USP45 fires",
+  "subtitles.ronweapons.sa58.fire": "SA-58 fires"
 }

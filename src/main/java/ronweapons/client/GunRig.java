@@ -85,6 +85,15 @@ public final class GunRig {
     /** Weapon light on a gun socket; lens: beam origin in socket space (cm). */
     public record Light(RonMesh mesh, int socket, float[] lens) {}
 
+    /**
+     * A foregrip on a gun socket. hand: where the left hand sits relative to the socket (arms model space, cm), from a RoN idle
+     * pose made for that grip; fingers: arms bone index + local pos / rot of the hand's children in that pose (the grip hold).
+     */
+    public record Grip(String id, RonMesh mesh, int socket, Matrix4f hand, int[] fingerBones, float[] fingerPos, float[] fingerRot) {}
+
+    /** Mag check read-out: socket the numbers ride on (gun space offset, cm) and the clip window the magazine is out (or null). */
+    public record MagCheck(int socket, float[] offset, float[] window) {}
+
     public final String id;
     public final RonMesh arms, gun;
     public final List<Attachment> attachments = new ArrayList<>();
@@ -103,6 +112,11 @@ public final class GunRig {
     public FxConfig fx;
     public ArmsAttachment armsAttachment;
     public Light light;
+    public final Map<String, Grip> grips = new HashMap<>();
+    public MagCheck magCheck;
+    /** left arm bones moved as one piece to put the hand on a grip (upperarm_LE and everything below it), and the hand */
+    public final int[] leftArm;
+    public final int handLE;
     /** action -> seconds after which the gun mesh is not drawn (the grenade has left the hand) */
     public final Map<String, Float> hideAfter = new HashMap<>();
     /** ADS correction computed from this action's pose instead of idle (shield: from the raised pose); ADS blend time */
@@ -223,6 +237,48 @@ public final class GunRig {
             if (l.has("lens")) for (int k = 0; k < 3; k++) lens[k] = l.getAsJsonArray("lens").get(k).getAsFloat();
             if (r.isPresent() && socket >= 0) light = new Light(RonMesh.read(r.get().getInputStream()), socket, lens);
         }
+        if (o.has("grips")) {
+            JsonObject gs = o.getAsJsonObject("grips");
+            for (String gid : gs.keySet()) {
+                JsonObject g = gs.getAsJsonObject(gid);
+                Optional<Resource> r = rm.getResource(RonWeapons.id(base + g.get("mesh").getAsString() + ".ronmesh"));
+                int socket = gun.bone(g.get("socket").getAsString());
+                if (r.isEmpty() || socket < 0) continue;
+                float[] hm = new float[16];
+                JsonArray ha = g.getAsJsonArray("hand");
+                for (int k = 0; k < 16; k++) hm[k] = ha.get(k).getAsFloat();
+                List<Integer> fb = new ArrayList<>();
+                List<float[]> fv = new ArrayList<>();
+                if (g.has("fingers")) for (JsonElement el : g.getAsJsonArray("fingers")) {
+                    JsonArray f = el.getAsJsonArray();
+                    int b = arms.bone(f.get(0).getAsString());
+                    if (b < 0) continue;
+                    float[] v = new float[7];
+                    for (int k = 0; k < 7; k++) v[k] = f.get(k + 1).getAsFloat();
+                    fb.add(b);
+                    fv.add(v);
+                }
+                float[] fp = new float[fb.size() * 3], fr = new float[fb.size() * 4];
+                for (int i = 0; i < fb.size(); i++) {
+                    System.arraycopy(fv.get(i), 0, fp, i * 3, 3);
+                    System.arraycopy(fv.get(i), 3, fr, i * 4, 4);
+                }
+                grips.put(gid, new Grip(gid, RonMesh.read(r.get().getInputStream()), socket, new Matrix4f().set(hm),
+                        fb.stream().mapToInt(Integer::intValue).toArray(), fp, fr));
+            }
+        }
+        if (o.has("magcheck")) {
+            JsonObject mc = o.getAsJsonObject("magcheck");
+            int socket = gun.bone(mc.get("socket").getAsString());
+            float[] off = {0f, 0f, 1.4f};
+            if (mc.has("offset")) for (int k = 0; k < 3; k++) off[k] = mc.getAsJsonArray("offset").get(k).getAsFloat();
+            float[] win = null;
+            if (mc.has("window") && mc.get("window").isJsonArray()) {
+                JsonArray w = mc.getAsJsonArray("window");
+                win = new float[] {w.get(0).getAsFloat(), w.get(1).getAsFloat()};
+            }
+            if (socket >= 0) magCheck = new MagCheck(socket, off, win);
+        }
         if (o.has("hide_after")) {
             JsonObject h = o.getAsJsonObject("hide_after");
             for (String k : h.keySet()) hideAfter.put(k, h.get(k).getAsFloat());
@@ -250,6 +306,18 @@ public final class GunRig {
             gunNoBlend[b] = n.startsWith("tag_mag_") || n.startsWith("tag_bullet"); // shotgun shell teleports hand -> tube
         }
         cameraBindRot = new Matrix4f(arms.bindGlobal[cameraBone]).setTranslation(0, 0, 0);
+        handLE = arms.bone("hand_LE");
+        int upper = arms.bone("upperarm_LE");
+        List<Integer> chain = new ArrayList<>();
+        if (upper >= 0) {
+            boolean[] in = new boolean[arms.parents.length];
+            in[upper] = true;
+            chain.add(upper);
+            for (int b = upper + 1; b < arms.parents.length; b++) {
+                if (arms.parents[b] >= 0 && in[arms.parents[b]]) { in[b] = true; chain.add(b); }
+            }
+        }
+        leftArm = chain.stream().mapToInt(Integer::intValue).toArray();
     }
 
     private void addAttachment(ResourceManager rm, String path, JsonArray socketNames, float hideAboveY) throws IOException {

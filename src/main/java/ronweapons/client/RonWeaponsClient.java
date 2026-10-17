@@ -31,7 +31,11 @@ import ronweapons.net.FxPayload;
 public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
 
-    private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey, lightKey;
+    private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey, lightKey, gripKey;
+
+    public static int localAmmo() { return localAmmo; }
+
+    public static boolean autoMode() { return autoMode; }
     private static boolean autoMode = true, wasAttack, wasHolding;
     private static String heldId;
     private static int heldSlot = -1, localAmmo = -1;
@@ -92,6 +96,8 @@ public final class RonWeaponsClient implements ClientModInitializer {
         suppKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.suppressor", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_N, "category.ronweapons"));
         opticKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.optic", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_M, "category.ronweapons"));
         lightKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.light", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, "category.ronweapons"));
+        gripKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.grip", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, "category.ronweapons"));
+        WeaponHud.init();
         GearClient.init();
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(RonWeapons.GRENADE_ENTITY, GrenadeEntityRenderer::new);
         ANIM.onShellInserted(() -> {
@@ -142,6 +148,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
             while (suppKey.wasPressed()) { }
             while (opticKey.wasPressed()) { }
             while (lightKey.wasPressed()) { }
+            while (gripKey.wasPressed()) { }
             wasAttack = false;
             return;
         }
@@ -173,13 +180,15 @@ public final class RonWeaponsClient implements ClientModInitializer {
                 autoMode = !autoMode;
                 ANIM.action(autoMode ? "select_auto" : "select_semi");
                 player.playSound(RonWeapons.SND_SELECT, 0.5f, 1.0f);
-                player.sendMessage(Text.translatable(autoMode ? "ronweapons.mode.auto" : "ronweapons.mode.semi", def.name()), true);
+                WeaponHud.notify(Text.translatable(autoMode ? "ronweapons.mode.auto" : "ronweapons.mode.semi", def.name()));
             }
         }
         while (magKey.wasPressed()) {
             if (ANIM.canAct()) {
                 ANIM.action("magcheck");
-                player.sendMessage(Text.literal(localAmmo + " / " + def.magSize()), true);
+                GunRig r = GunRig.get(mc.getResourceManager(), rigId);
+                // with the pack the count floats on the magazine (FirstPersonRenderer); without it, in the HUD
+                if (r == null || r.magCheck == null) WeaponHud.notify(Text.literal(localAmmo + " / " + def.magSize()));
             }
         }
 
@@ -188,7 +197,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
                 boolean on = !RonWeapons.suppressed(stack);
                 ClientPlayNetworking.send(new ActionPayload(ActionPayload.TOGGLE_SUPPRESSOR));
                 player.playSound(RonWeapons.SND_SELECT, 0.4f, on ? 0.8f : 1.2f);
-                player.sendMessage(Text.translatable(on ? "ronweapons.suppressor.on" : "ronweapons.suppressor.off", def.name()), true);
+                WeaponHud.notify(Text.translatable(on ? "ronweapons.suppressor.on" : "ronweapons.suppressor.off", def.name()));
             }
         }
         while (opticKey.wasPressed()) {
@@ -196,18 +205,28 @@ public final class RonWeaponsClient implements ClientModInitializer {
                 int next = (RonWeapons.optic(stack) + 1) % def.opticCount();
                 ClientPlayNetworking.send(new ActionPayload(ActionPayload.CYCLE_OPTIC));
                 player.playSound(RonWeapons.SND_SELECT, 0.4f, 0.9f);
-                player.sendMessage(Text.translatable("ronweapons.optic", def.name(),
-                        Text.translatable("ronweapons.optic." + def.optics()[next])), true);
+                WeaponHud.notify(Text.translatable("ronweapons.optic", def.name(),
+                        Text.translatable("ronweapons.optic." + def.optics()[next])));
             }
         }
 
+        while (gripKey.wasPressed()) {
+            if (def.gripCount() > 1 && ANIM.canAct()) {
+                int next = (RonWeapons.grip(stack) + 1) % def.gripCount();
+                ClientPlayNetworking.send(new ActionPayload(ActionPayload.CYCLE_GRIP));
+                player.playSound(RonWeapons.SND_SELECT, 0.4f, 0.75f);
+                WeaponHud.notify(Text.translatable("ronweapons.grip", def.name(), Text.translatable("ronweapons.grip." + def.grips()[next])));
+            } else if (def.gripCount() < 2) {
+                WeaponHud.notify(Text.translatable("ronweapons.grip.unsupported", def.name()));
+            }
+        }
         while (lightKey.wasPressed()) {
             if (def.hasLight()) {
                 boolean on = !ronweapons.Gear.lightOn(stack);
                 ClientPlayNetworking.send(new ActionPayload(ActionPayload.TOGGLE_LIGHT));
-                player.sendMessage(Text.translatable(on ? "ronweapons.light.on" : "ronweapons.light.off", def.name()), true);
+                WeaponHud.notify(Text.translatable(on ? "ronweapons.light.on" : "ronweapons.light.off", def.name()));
             } else {
-                player.sendMessage(Text.translatable("ronweapons.light.none", def.name()), true);
+                WeaponHud.notify(Text.translatable("ronweapons.light.none", def.name()));
             }
         }
 
