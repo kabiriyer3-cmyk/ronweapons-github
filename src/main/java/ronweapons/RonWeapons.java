@@ -174,6 +174,21 @@ public final class RonWeapons implements ModInitializer {
         return d == null ? "none" : d.grips()[grip(stack)];
     }
 
+    /** attachment menu: set one slot of the held weapon directly (not while reloading) */
+    private static void attach(ServerPlayerEntity player, int slot, int index) {
+        ItemStack stack = player.getMainHandStack();
+        WeaponDef d = def(stack);
+        if (d == null || index < 0) return;
+        UUID u = player.getUuid();
+        if (reloadEnds.containsKey(u) || shellReloads.containsKey(u)) return;
+        switch (slot) {
+            case ronweapons.net.AttachPayload.OPTIC -> { if (index < d.opticCount()) stack.set(OPTIC, index); }
+            case ronweapons.net.AttachPayload.MUZZLE -> { if (index < d.muzzleCount()) stack.set(MUZZLE, index); }
+            case ronweapons.net.AttachPayload.GRIP -> { if (index < d.gripCount()) stack.set(GRIP, index); }
+            default -> { }
+        }
+    }
+
     public static int muzzle(ItemStack stack) {
         WeaponDef d = def(stack);
         int m = stack.getOrDefault(MUZZLE, 0);
@@ -215,6 +230,8 @@ public final class RonWeapons implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(FxPayload.ID, FxPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(FirePayload.ID, (payload, ctx) -> fire(ctx.player()));
         ServerPlayNetworking.registerGlobalReceiver(ActionPayload.ID, (payload, ctx) -> action(ctx.player(), payload.action()));
+        PayloadTypeRegistry.playC2S().register(ronweapons.net.AttachPayload.ID, ronweapons.net.AttachPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(ronweapons.net.AttachPayload.ID, (payload, ctx) -> attach(ctx.player(), payload.slot(), payload.index()));
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             serverTicks++;

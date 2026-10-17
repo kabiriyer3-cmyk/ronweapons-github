@@ -95,5 +95,13 @@
   "ronweapons.grip.rk1": "Zenitco RK-1",
   "ronweapons.grip.cqr": "Magpul CQR",
   "ronweapons.muzzle": "%s: %s",
-  "ronweapons.muzzle.off": "%s: без дульного устройства"
+  "ronweapons.muzzle.off": "%s: без дульного устройства",
+  "key.ronweapons.menu": "Меню обвеса",
+  "ronweapons.menu.title": "Обвес",
+  "ronweapons.menu.optic": "Прицел",
+  "ronweapons.menu.muzzle": "Дульное",
+  "ronweapons.menu.grip": "Рукоятка",
+  "ronweapons.muzzle.none": "без дульного",
+  "ronweapons.menu.none": "%s: менять нечего",
+  "ronweapons.menu.hint": "ЛКМ поставить • тяни центр: вращать • колесо: зум • R: сброс • Tab/1-3: раздел • K/Esc: закрыть"
 }

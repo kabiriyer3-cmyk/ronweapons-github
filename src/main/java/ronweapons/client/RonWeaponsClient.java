@@ -32,6 +32,8 @@ public final class RonWeaponsClient implements ClientModInitializer {
     public static final GunAnimator ANIM = new GunAnimator();
 
     private static KeyBinding reloadKey, selectKey, magKey, suppKey, opticKey, lightKey, gripKey;
+    /** opens the radial attachment menu with the 3D preview */
+    public static KeyBinding menuKey;
 
     public static int localAmmo() { return localAmmo; }
 
@@ -97,6 +99,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
         opticKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.optic", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_M, "category.ronweapons"));
         lightKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.light", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, "category.ronweapons"));
         gripKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.grip", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, "category.ronweapons"));
+        menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.ronweapons.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, "category.ronweapons"));
         WeaponHud.init();
         GearClient.init();
         net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register(RonWeapons.GRENADE_ENTITY, GrenadeEntityRenderer::new);
@@ -149,6 +152,7 @@ public final class RonWeaponsClient implements ClientModInitializer {
             while (opticKey.wasPressed()) { }
             while (lightKey.wasPressed()) { }
             while (gripKey.wasPressed()) { }
+            while (menuKey.wasPressed()) { }
             wasAttack = false;
             return;
         }
@@ -220,6 +224,15 @@ public final class RonWeaponsClient implements ClientModInitializer {
                 WeaponHud.notify(Text.translatable("ronweapons.grip", def.name(), Text.translatable("ronweapons.grip." + def.grips()[next])));
             } else if (def.gripCount() < 2) {
                 WeaponHud.notify(Text.translatable("ronweapons.grip.unsupported", def.name()));
+            }
+        }
+        while (menuKey.wasPressed()) {
+            if (mc.currentScreen == null && ANIM.canAct()
+                    && (def.opticCount() > 1 || def.muzzleCount() > 1 || def.gripCount() > 1)) {
+                mc.setScreen(new AttachmentScreen());
+                player.playSound(RonWeapons.SND_SELECT, 0.4f, 0.6f);
+            } else if (mc.currentScreen == null) {
+                WeaponHud.notify(Text.translatable("ronweapons.menu.none", def.name()));
             }
         }
         while (lightKey.wasPressed()) {

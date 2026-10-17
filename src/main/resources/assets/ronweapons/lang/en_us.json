@@ -95,5 +95,13 @@
   "ronweapons.grip.rk1": "Zenitco RK-1",
   "ronweapons.grip.cqr": "Magpul CQR",
   "ronweapons.muzzle": "%s: %s",
-  "ronweapons.muzzle.off": "%s: bare muzzle"
+  "ronweapons.muzzle.off": "%s: bare muzzle",
+  "key.ronweapons.menu": "Attachment menu",
+  "ronweapons.menu.title": "Attachments",
+  "ronweapons.menu.optic": "Optic",
+  "ronweapons.menu.muzzle": "Muzzle",
+  "ronweapons.menu.grip": "Foregrip",
+  "ronweapons.muzzle.none": "bare muzzle",
+  "ronweapons.menu.none": "%s: no attachments to change",
+  "ronweapons.menu.hint": "LMB mount • drag centre: rotate • wheel: zoom • R: reset view • Tab/1-3: category • K/Esc: close"
 }

@@ -434,6 +434,26 @@ for k in ("g19_shield", "python_shield"):
             WEAPONS[k][key] = base.get(key, [])
         WEAPONS[k].pop("suppressor", None)
 
+# ---------------- v11: walk / sprint / draw for every weapon. RoN only ships them for some guns (the rest use shared
+# additive loco layers), so the motion of a donor clip is moved onto this weapon's own idle pose:
+#   local = base_idle * (donor_idle^-1 * donor(t)),  pos = base + (donor(t) - donor_idle)
+M4_IDLE_A = WEAPONS["m4a1"]["actions"]["idle"][0]
+G19_IDLE_A = WEAPONS["g19"]["actions"]["idle"][0]
+M4_WALK = WEAPONS["m4a1"]["actions"]["walk"][0]
+M4_RUN = WEAPONS["m4a1"]["actions"]["run"][0]
+PISTOL_RUN = WEAPONS["g19"]["actions"]["run"][0]
+G19_DRAW = WEAPONS["g19"]["actions"]["draw"][0]
+for wid, kind in (("g19", "pistol"), ("usp45", "pistol"), ("python", "pistol"), ("m590", "rifle"), ("sa58", "rifle")):
+    acts = WEAPONS[wid]["actions"]
+    base = acts["idle"][0]
+    if not base:
+        continue
+    acts.setdefault("walk", (("loco", M4_WALK, M4_IDLE_A, base), None))
+    if "run" not in acts:
+        acts["run"] = (("loco", M4_RUN, M4_IDLE_A, base) if kind == "rifle" else ("loco", PISTOL_RUN, G19_IDLE_A, base), None)
+    if "draw" not in acts:
+        acts["draw"] = (("loco", G19_DRAW, G19_IDLE_A, base) if kind == "pistol" else ("loco", WEAPONS["m4a1"]["actions"]["draw"][0], M4_IDLE_A, base), None)
+
 RETICLE_RGB = (255, 36, 24)
 SKIP_MATERIAL = ("glass", "invisible", "pip_scope", "clear_inst")
 
@@ -785,6 +805,64 @@ def write_mesh(mesh, path, tex_for_material, rigid):
     return nw, len(mesh.faces)
 
 
+class _Clip:
+    pass
+
+
+def _clip_frame(spec):
+    rel, pick = (spec, None) if isinstance(spec, str) else spec
+    p = exported(rel, ".psa")
+    if not p:
+        return None, 0
+    a = read_psa(p)
+    return a, (a.frames - 1 if pick == "last" else 0)
+
+
+def _qmul(a, b):
+    ax, ay, az, aw = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    bx, by, bz, bw = b[..., 0], b[..., 1], b[..., 2], b[..., 3]
+    return np.stack([aw * bx + ax * bw + ay * bz - az * by,
+                     aw * by - ax * bz + ay * bw + az * bx,
+                     aw * bz + ax * by - ay * bx + az * bw,
+                     aw * bw - ax * bx - ay * by - az * bz], axis=-1)
+
+
+def retarget_loco(src_rel, src_ref, base_spec):
+    """donor clip's motion relative to the donor's idle, applied on this weapon's idle (local bone space)"""
+    src, _ = _clip_frame(src_rel)
+    ref, rf = _clip_frame(src_ref)
+    base, bf = _clip_frame(base_spec)
+    if src is None or ref is None or base is None:
+        return None
+    def rt(q, j):  # PSA -> runtime convention (non-root conjugated)
+        q = np.array(q, dtype=np.float64)
+        if j != 0:
+            q[..., :3] *= -1
+        return q / np.linalg.norm(q, axis=-1, keepdims=True)
+    ridx = {n.lower(): j for j, n in enumerate(ref.bones)}
+    bidx = {n.lower(): j for j, n in enumerate(base.bones)}
+    out = _Clip()
+    out.bones, out.frames, out.fps = list(src.bones), src.frames, src.fps
+    pos = np.array(src.pos, dtype=np.float64).copy()
+    quat = np.array(src.quat, dtype=np.float64).copy()
+    for j, n in enumerate(src.bones):
+        r, b = ridx.get(n.lower()), bidx.get(n.lower())
+        if r is None or b is None:
+            continue
+        qt = rt(src.quat[:, j], j)
+        q0 = rt(ref.quat[rf, r], r)
+        qb = rt(base.quat[bf, b], b)
+        q0c = q0 * np.array([-1, -1, -1, 1])
+        q = _qmul(np.broadcast_to(qb, qt.shape), _qmul(np.broadcast_to(q0c, qt.shape), qt))
+        q /= np.linalg.norm(q, axis=-1, keepdims=True)
+        if j != 0:
+            q[..., :3] *= -1
+        quat[:, j] = q
+        pos[:, j] = np.array(base.pos[bf, b]) + (np.array(src.pos[:, j]) - np.array(ref.pos[rf, r]))
+    out.pos, out.quat = pos, quat
+    return out
+
+
 def write_anim(anim, mesh, path, pick=None):
     names = {b.name.lower() for b in mesh.bones}
     keep = [i for i, n in enumerate(anim.bones) if n.lower() in names]
@@ -1010,6 +1088,15 @@ def main():
         for action, (a_rel, w_rel) in w["actions"].items():
             for kind, spec, mesh in (("arms", a_rel, arms), ("weapon", w_rel, gun)):
                 if not spec:
+                    continue
+                if isinstance(spec, tuple) and spec[0] == "loco":
+                    clip = retarget_loco(*spec[1:])
+                    if clip is None:
+                        print(f"  ! {action}/{kind}: donor clip for {spec[1]} not exported, skipped")
+                        continue
+                    pick = None
+                    tracks, dur = write_anim(clip, mesh, os.path.join(base, "anims", f"{action}_{kind}.ronanim"))
+                    print(f"   {action:13s} {kind:6s} {tracks:3d} tracks {dur:5.2f}s (retargeted from {spec[1].split('/')[-1]})")
                     continue
                 rel, pick = (spec, None) if isinstance(spec, str) else spec
                 psa = exported(rel, ".psa")
